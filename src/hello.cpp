@@ -1,5 +1,5 @@
 #include <iostream>
-#include <eigen3/Eigen/Dense>
+#include <Eigen/Dense>
 
 int main(int, char**) {
   std::cout << "Hello, nerds!" << std::endl;
