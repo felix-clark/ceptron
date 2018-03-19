@@ -6,17 +6,18 @@
 using std::cout;
 using std::endl;
 
-void check_gradient(func_t f, grad_t g, parvec p, double ep=1e-6, double tol=1e-16) {
+void check_gradient(func_t f, grad_t g, parvec p, double ep=1e-6, double tol=1e-2) {
   parvec evalgrad = g(p);
   double gradmag = sqrt(evalgrad.square().sum());
-  // parvec dir = evalgrad/gradmag; // unit vector along direction of greatest change
-  double deltaf = (f(p+ep*evalgrad) - f(p-ep*evalgrad))/(2*ep*gradmag); // should be close to |gradf|
-  if ( abs(deltaf - gradmag) > tol*abs(deltaf + gradmag) ) {
+  parvec dir = (1.0+p.square()).sqrt()*evalgrad/gradmag; // vector along direction of greatest change
+  // we should actually check the numerical derivative element-by-element
+  double deltaf = (f(p+ep*dir) - f(p-ep*dir))/(2*ep*sqrt(dir.square().sum())); // should be close to |gradf|
+  if ( fabs(deltaf) - gradmag > tol*fabs(deltaf + gradmag) ) {
     cout << "gradient check failed!" << endl;
     cout << "f(p) = " << f(p) << endl;
     cout << "numerical derivative = " << deltaf << endl;
     cout << "analytic gradient magnitude = " << gradmag << endl;
-    cout << "difference = " << deltaf - gradmag << endl;
+    cout << "difference = " << fabs(deltaf) - gradmag << endl;
   }
 }
 
@@ -40,10 +41,10 @@ min_result test_min_step( IMinStep* minstep, func_t f, grad_t g, parvec initpars
   bool finished = false;
   while( !finished ) {
     check_gradient( f, g, pars );
-    parvec dpars = minstep->getDeltaPar( g, pars );
+    parvec dpars = minstep->getDeltaPar( f, g, pars );
     if (isnan(dpars).any()) {
       cout << "NaN in proposed delta pars!" << endl;
-
+      
       return {pars, f(pars), g(pars), n_iterations, 1};
     }
 
@@ -102,8 +103,8 @@ void run_test_functions( IMinStep* minstep, parvec initpars ) {
 
 int main( int argc, char** argv ) {
 
-  size_t ndim = 4;
-  // size_t ndim = 2;
+  // size_t ndim = 4;
+  size_t ndim = 2;
   parvec initpars(ndim);
   initpars = 2 * parvec::Random(ndim);
   cout << "initial parameters: ";
@@ -113,7 +114,7 @@ int main( int argc, char** argv ) {
   cout << "  ... gradient descent ..." << endl;
   run_test_functions( &gd, initpars );
 
-  GradientDescentWithMomentum gdm = GradientDescentWithMomentum(ndim);
+  GradientDescentWithMomentum gdm(ndim);
   gdm.setLearnRate(0.001); // default learn rate is too large for rosenbrock
   cout << "  ... MOM ..." << endl;
   run_test_functions( &gdm, initpars );
@@ -128,7 +129,7 @@ int main( int argc, char** argv ) {
   // it seems to diverge for rosenbrock function right now...
   cout << "  ... ADADELTA ..." << endl;
   AdaDelta ad(ndim);
-  // ad.setLearnRate(0.25);
+  // ad.setLearnRate(0.5);
   // ad.setDecayScale(0.5);
   run_test_functions( &ad, initpars );
 

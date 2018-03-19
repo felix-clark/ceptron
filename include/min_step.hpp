@@ -15,6 +15,8 @@ class GradientDescentWithMomentum;
 class AcceleratedGradient;
 class AdaDelta;
 
+double line_search( std::function<double(double)>, double, double, size_t maxiter = 16, double tol=1e-6 );
+
 // in the future some may report a Hessian approximation
 // this should be a separate interface
 // a full Newton method would take a Hessian as well as a gradient (probably not worth implementing)
@@ -27,7 +29,7 @@ public:
   IMinStep(){}
   virtual ~IMinStep(){}
   // step_pars returns the next value of the parameter vector
-  virtual parvec getDeltaPar( grad_t, parvec ) = 0;
+  virtual parvec getDeltaPar( func_t, grad_t, parvec ) = 0;
   // remove any cached information, which some minimizers use to optimize the step rates
   virtual void resetCache() = 0;
 };
@@ -38,7 +40,7 @@ public:
   GradientDescent();
   GradientDescent(double);
   ~GradientDescent();
-  virtual parvec getDeltaPar( grad_t, parvec ) override;
+  virtual parvec getDeltaPar( func_t, grad_t, parvec ) override;
   virtual void resetCache() override {}; // nothing to do with gradient descent
   void setLearnRate(double lr) {learn_rate_ = lr;}
 private:
@@ -52,7 +54,7 @@ public:
 			      double learn_rate=0.01,
 			      double momentum_scale=0.875);
   ~GradientDescentWithMomentum();
-  virtual parvec getDeltaPar( grad_t, parvec ) override;
+  virtual parvec getDeltaPar( func_t, grad_t, parvec ) override;
   virtual void resetCache() override {momentum_term_.setZero(momentum_term_.size());}
   void setLearnRate(double lr) {learn_rate_ = lr;}
   void setMomentumScale(double ms) {momentum_scale_ = ms;}
@@ -70,7 +72,7 @@ public:
 		      double learn_rate=0.01,
 		      double momentum_scale=0.875);
   ~AcceleratedGradient();
-  virtual parvec getDeltaPar( grad_t, parvec ) override;
+  virtual parvec getDeltaPar( func_t, grad_t, parvec ) override;
   virtual void resetCache() override {momentum_term_.setZero(momentum_term_.size());}
   void setLearnRate(double lr) {learn_rate_ = lr;}
   void setMomentumScale(double ms) {momentum_scale_ = ms;}
@@ -88,7 +90,7 @@ public:
 	   double learn_rate=1.0,
 	   double epsilon=1e-6);
   ~AdaDelta();
-  virtual parvec getDeltaPar( grad_t, parvec ) override;
+  virtual parvec getDeltaPar( func_t, grad_t, parvec ) override;
   virtual void resetCache() override;
   void setDecayScale(double ds) {decay_scale_ = ds;}
   void setLearnRate(double lr) {learn_rate_ = lr;}
@@ -107,7 +109,7 @@ class Bfgs : public IMinStep
 public:
   Bfgs(size_t npar);
   ~Bfgs();
-  virtual parvec getDeltaPar( grad_t, parvec ) override;
+  virtual parvec getDeltaPar( func_t, grad_t, parvec ) override;
   virtual void resetCache() override;
 private:
   Eigen::MatrixXd hessian_approx_;
