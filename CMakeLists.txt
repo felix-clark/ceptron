@@ -20,9 +20,12 @@ include_directories(include ${CMAKE_INSTALL_PREFIX}/include/eigen3)
 file(GLOB SOURCES src/*.cpp)
 # file(GLOB_RECURSE SOURCES src/*.cpp) # recursive, for when we want to organize a bit
 
+add_library(ceptron ${SOURCES})
+
 add_executable(hello src/hello.cpp) # we need to give it $SOURCES, not the specific source file?
 # add_executable(hello ${SOURCES})
 add_executable(test_min src/test_min.cpp)
+target_link_libraries(test_min ceptron)
 
 
 # add_definitions(-DBOOST_LOG_DYN_LINK)

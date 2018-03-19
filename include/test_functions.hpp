@@ -7,6 +7,9 @@ using parvec = Eigen::ArrayXd;
 double sphere( const parvec& pars );
 parvec grad_sphere( const parvec& pars );
 
+double ellipse( const parvec& pars, double scale=16.0 );
+parvec grad_ellipse( const parvec& pars, double scale=16.0 );
+
 // should converge to all parameters having value 1.0
 double rosenbrock( const parvec& pars, double scale=100.0 );
 parvec grad_rosenbrock( const parvec& pars, double scale=100.0 );

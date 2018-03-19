@@ -4,7 +4,8 @@
 
 // it might be nice to use compile-time fixed-size arrays at some point. would necessitate template parameters.
 using parvec = Eigen::ArrayXd;
-// // these algorithms do not require the actual function, but we'll make this typedef for convenience in source files that include this
+// these algorithms do not require the actual function, but we'll make this typedef for convenience in source files that include this
+// however the function might be used to do a line search to optimize step sizes, so we may need to return to it
 using func_t = std::function<double(parvec)>;
 using grad_t = std::function<parvec(parvec)>;
 
@@ -47,8 +48,9 @@ private:
 class GradientDescentWithMomentum : public IMinStep
 {
 public:
-  // GradientDescentWithMomentum();
-  GradientDescentWithMomentum(size_t npar, double learn_rate, double momentum_scale);
+  GradientDescentWithMomentum(size_t npar,
+			      double learn_rate=0.01,
+			      double momentum_scale=0.875);
   ~GradientDescentWithMomentum();
   virtual parvec getDeltaPar( grad_t, parvec ) override;
   virtual void resetCache() override {momentum_term_.setZero(momentum_term_.size());}
@@ -56,7 +58,7 @@ public:
   void setMomentumScale(double ms) {momentum_scale_ = ms;}
 private:
   parvec momentum_term_;
-  double learn_rate_ = 0.01;
+  double learn_rate_ = 0.005;
   double momentum_scale_ = 0.875;
 };
 
@@ -64,7 +66,9 @@ class AcceleratedGradient : public IMinStep
 {
 public:
   // AcceleratedGradient();
-  AcceleratedGradient(size_t npar, double learn_rate, double momentum_scale);
+  AcceleratedGradient(size_t npar,
+		      double learn_rate=0.01,
+		      double momentum_scale=0.875);
   ~AcceleratedGradient();
   virtual parvec getDeltaPar( grad_t, parvec ) override;
   virtual void resetCache() override {momentum_term_.setZero(momentum_term_.size());}
@@ -72,14 +76,17 @@ public:
   void setMomentumScale(double ms) {momentum_scale_ = ms;}
 private:
   parvec momentum_term_;
-  double learn_rate_ = 0.01;
+  double learn_rate_ = 0.005;
   double momentum_scale_ = 0.875;
 };
 
 class AdaDelta : public IMinStep
 {
 public:
-  AdaDelta(size_t npar, double decay_scale, double epsilon, double learn_rate);
+  AdaDelta(size_t npar,
+	   double decay_scale=0.9375,
+	   double learn_rate=1.0,
+	   double epsilon=1e-6);
   ~AdaDelta();
   virtual parvec getDeltaPar( grad_t, parvec ) override;
   virtual void resetCache() override;
@@ -89,9 +96,22 @@ public:
 private:
   parvec accum_grad_sq_;
   parvec accum_dpar_sq_;
-  bool have_last_par_ = false;
-  parvec last_par_;
+  parvec last_delta_par_;
   double decay_scale_ = 0.9375; // similar to window average of last 16 values. 0.875 for scale of 8 previous values
   double learn_rate_ = 1.0; // a default value that can be adjusted down if necessary
   double ep_ = 1e-6;
+};
+
+class Bfgs : public IMinStep
+{
+public:
+  Bfgs(size_t npar);
+  ~Bfgs();
+  virtual parvec getDeltaPar( grad_t, parvec ) override;
+  virtual void resetCache() override;
+private:
+  Eigen::MatrixXd hessian_approx_;
+  // Eigen::VectorXd lastpar_;
+  // Eigen::VectorXd lastgrad_;
+  double learn_rate_ = 1.0;
 };
