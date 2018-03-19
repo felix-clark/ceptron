@@ -103,8 +103,8 @@ void run_test_functions( IMinStep* minstep, parvec initpars ) {
 
 int main( int argc, char** argv ) {
 
-  // size_t ndim = 4;
-  size_t ndim = 2;
+  size_t ndim = 4;
+  // size_t ndim = 2;
   parvec initpars(ndim);
   initpars = 2 * parvec::Random(ndim);
   cout << "initial parameters: ";

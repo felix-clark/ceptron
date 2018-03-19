@@ -164,14 +164,14 @@ parvec Bfgs::getDeltaPar( func_t f, grad_t g, parvec par )
   // }
   
   auto f_line = [&](double x){return f(par + x*deltap.array());};
-  double alpha_step = line_search( f_line, 0.7071067, 1.0 );
-
+  double alpha_step = line_search( f_line, 0.7071067, 1.0 );  
   // if (fabs(alpha_step) < 1e-2) {
   //   std::cout << "small step in line search: " << alpha_step << std::endl;
   //   for (double xl = -2.0e-2; xl < 0.1; xl += 1.0e-2) {
   //     std::cout << "f(" << xl << ") = " << f_line(xl) << std::endl;
   //   }
   // }
+  deltap *= alpha_step;
   
   Eigen::VectorXd deltagrad = (g(par+deltap.array()).matrix() - grad);
 
@@ -184,6 +184,7 @@ parvec Bfgs::getDeltaPar( func_t f, grad_t g, parvec par )
 }
 
 // will perform a 1D simplex minimum search to quickly find a step size
+// could possibly use instead a golden search on the interval (0,1)
 double line_search( std::function<double(double)> f, double xa, double xb, size_t maxiter, double tol ) {
   constexpr double alpha = 1.0;
   constexpr double gamma = 2.0;
