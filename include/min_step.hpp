@@ -153,9 +153,12 @@ parvec<N> AdaDelta<N>::getDeltaPar( func_t<N> f, grad_t<N> g, parvec<N> pars )
   parvec<N> dp = - learn_rate_ * adj_learn_rate * grad;
   // we can do an explicit check to keep from over-stepping
 
+  // we should remove the line search in the general step
   // if ( f(pars+dp) > f(pars) ) {
   //   // a rapidly-truncated golden section search would probably be better since we can restrict 0 < alpha < 1
   //   // this actually ends up slowing down easy convergences so perhaps it's not the best approach
+  //   // it prevents blowups but seems to negate most of the advantages of AdaDelta in the first place
+  //   // practically, it might make sense to run a few iterations w/ line search then turn it off.
   //   auto f_line = [&](double x){return f(pars + x*dp.array());};
   //   double alpha_step = line_search( f_line, 0.7071067, 1.0 );
 
@@ -169,26 +172,9 @@ parvec<N> AdaDelta<N>::getDeltaPar( func_t<N> f, grad_t<N> g, parvec<N> pars )
   accum_dpar_sq_ *= decay_scale_;
   accum_dpar_sq_ += (1.0-decay_scale_)*(last_delta_par_.square());
 
-    // static int dbg = 0;
-  // if (dbg < 1000 && dbg % 1 == 0) {
-  //   std::cout << "lr: " << learn_rate_ << std::endl << "grad:";
-  //   for (size_t i=0; i<pars.size(); ++i) {
-  //     std::cout << grad[i] << ", ";
-  //   }
-  //   std::cout << std::endl << "last dp: ";
-  //   for (size_t i=0; i<pars.size(); ++i) {
-  //     std::cout << last_delta_par_[i] << ", ";
-  //   }
-  //   std::cout << std::endl << "adj lr: ";
-  //   for (size_t i=0; i<pars.size(); ++i) {
-  //     std::cout << adj_learn_rate[i] << ", ";
-  //   }
-  //   std::cout << std::endl;
-  // }
-  // dbg++;
-  
-  // this parameter can be saved directly for the next iteration
   last_delta_par_ = dp;
+
+  // this parameter can be saved directly for the next iteration
   return dp;
   
 }
@@ -207,8 +193,6 @@ public:
   virtual void resetCache() override;
 private:
   Matrix<double, N, N> hessian_approx_ = decltype(hessian_approx_)::Identity();
-  // VectorXd lastpar_ = ...Zero();
-  // VectorXd lastgrad_;
   double learn_rate_ = 1.0;
 };
 
@@ -216,8 +200,6 @@ template <size_t N>
 void Bfgs<N>::resetCache()
 {
   hessian_approx_.setIdentity();
-  // lastpar_.setZero();
-  // lastgrad_.setZero();
 }
 
 template <size_t N>
@@ -226,39 +208,16 @@ parvec<N> Bfgs<N>::getDeltaPar( func_t<N> f, grad_t<N> g, parvec<N> par )
   Matrix<double, N, 1> grad = g(par).matrix();
   // the hessian approximation should remain positive definite. LLT requires positive-definiteness.
   // LLT actually yields NaN solutions at times so perhaps our hessian is not always pos-def.
+  // using a line search seems to have alleviated this issue.
   Matrix<double, N, 1> deltap = - learn_rate_ * hessian_approx_.llt().solve(grad);
   // VectorXd deltap = - learn_rate_ * hessian_approx_.ldlt().solve(grad);
   // VectorXd deltap = - learn_rate_ * hessian_approx_.householderQr().solve(grad); // no requirements on matrix for this
-
-  // typically a line search is done to optimize the step size in the above direction. we'll just use a learning rate of 1 for now.
-  // a line search might be necessary because Newton's method can diverge if the hessian is negative.
-  // it might be good to check for a NaN or infinity in the solution
-
-  // if ( ! deltap.array().isFinite().all() ) {
-  //   std::cout << "solution is not finite" << std::endl;
-  //   if ( ! grad.array().isFinite().all() ) {
-  //     std::cout << "probably because the gradient is not finite either." << std::endl;
-  //   }  else {
-  //     std::cout << "gradient is finite though..." << std::endl;
-  //   }
-  //   if ( ! hessian_approx_.array().isFinite().all() ) {
-  //     std::cout << "hessian itself is not finite!" << std::endl;
-  //   }
-  //   if ( ! par.array().isFinite().all() ) {
-  //     std::cout << "and neither are the parameters" << std::endl;
-  //   }
-  // }
 
   // we might only want to do this line search if we see an increasing value f(p+dp) > f(p)
   // , in which case a golden section search might be more efficient
   auto f_line = [&](double x){return f(par + x*deltap.array());};
   double alpha_step = line_search( f_line, 0.7071067, 1.0 );  
-  // if (fabs(alpha_step) < 1e-2) {
-  //   std::cout << "small step in line search: " << alpha_step << std::endl;
-  //   for (double xl = -2.0e-2; xl < 0.1; xl += 1.0e-2) {
-  //     std::cout << "f(" << xl << ") = " << f_line(xl) << std::endl;
-  //   }
-  // }
+
   deltap *= alpha_step;
   
   Matrix<double, N, 1> deltagrad = (g(par+deltap.array()).matrix() - grad);

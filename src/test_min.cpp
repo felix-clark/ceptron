@@ -34,17 +34,16 @@ struct min_result
 };
 
 template <size_t N>
-min_result<N> test_min_step( IMinStep<N>* minstep, func_t<N> f, grad_t<N> g, parvec<N> initpars,
+min_result<N> test_min_step( IMinStep<N>& minstep, func_t<N> f, grad_t<N> g, parvec<N> initpars,
 			  double abstol=1e-10, size_t maxsteps=64000 ) {
-  assert( minstep != nullptr );
-  minstep->resetCache(); // need to make sure caches are reset!
+  minstep.resetCache(); // need to make sure caches are reset!
   
   parvec<N> pars = initpars;
   size_t n_iterations = 0;
   bool finished = false;
   while( !finished ) {
     check_gradient<N>( f, g, pars );
-    parvec<N> dpars = minstep->getDeltaPar( f, g, pars );
+    parvec<N> dpars = minstep.getDeltaPar( f, g, pars );
     if (isnan(dpars).any()) {
       cout << "NaN in proposed delta pars!" << endl;
       
@@ -87,8 +86,8 @@ void print_result( min_result<N> res ) {
 }
 
 template <size_t N>
-void run_test_functions( IMinStep<N>* minstep, parvec<N> initpars ) {
-  assert( minstep != nullptr );
+void run_test_functions( IMinStep<N>& minstep, parvec<N> initpars ) {
+  // assert( minstep != nullptr );
   
   cout << "testing basic ellipse function" << endl;
   // basic gradient descent has trouble with a large scale in ellipse function
@@ -111,8 +110,8 @@ void run_test_functions( IMinStep<N>* minstep, parvec<N> initpars ) {
 
 int main( int argc, char** argv ) {
 
-  constexpr size_t ndim = 4;
-  // constexpr size_t ndim = 2;
+  // constexpr size_t ndim = 4;
+  constexpr size_t ndim = 2;
   parvec<ndim> initpars;
   initpars = 2 * parvec<ndim>::Random();
   cout << "initial parameters: ";
@@ -121,18 +120,18 @@ int main( int argc, char** argv ) {
   GradientDescent<ndim> gd;
   gd.setLearnRate(0.001);
   cout << "  ... gradient descent ..." << endl;
-  run_test_functions<ndim>( &gd, initpars );
+  run_test_functions<ndim>( gd, initpars );
 
   GradientDescentWithMomentum<ndim> gdm;
   gdm.setLearnRate(0.001); // default learn rate is too large for rosenbrock
   cout << "  ... MOM ..." << endl;
-  run_test_functions<ndim>( &gdm, initpars );
+  run_test_functions<ndim>( gdm, initpars );
 
   AcceleratedGradient<ndim> ag;
   // ag.setMomentumScale(0.5);
   ag.setLearnRate(0.001); // we need to turn down the learn rate significantly or it diverges on rosenbrock
   cout << "  ... NAG ..." << endl;
-  run_test_functions<ndim>( &ag, initpars );
+  run_test_functions<ndim>( ag, initpars );
 
   // ADADELTA converges in much fewer steps for basic sphere.
   // it seems to diverge for rosenbrock function right now...
@@ -140,13 +139,13 @@ int main( int argc, char** argv ) {
   AdaDelta<ndim> ad;
   // ad.setLearnRate(0.5);
   // ad.setDecayScale(0.5);
-  run_test_functions<ndim>( &ad, initpars );
+  run_test_functions<ndim>( ad, initpars );
 
   // BFGS isn't going to be useful for machine learning but let's compare it to other minimizers
-  // it's possible that LBFGS can be used
+  // it's possible that LBFGS can be used, but may need some adaptation for stochastic/mini-batch minimization
   cout << "  ... BFGS ..." << endl;
   Bfgs<ndim> bfgs;
-  run_test_functions<ndim>( &bfgs, initpars );
+  run_test_functions<ndim>( bfgs, initpars );
   
   return 0;
 }

@@ -24,9 +24,13 @@ add_library(ceptron ${SOURCES})
 
 add_executable(hello src/hello.cpp) # we need to give it $SOURCES, not the specific source file?
 # add_executable(hello ${SOURCES})
+
+# there must be a more efficient way of organizing these
 add_executable(test_min src/test_min.cpp)
 target_link_libraries(test_min ceptron)
 
+add_executable(test_net src/test_net.cpp)
+target_link_libraries(test_net ceptron)
 
 # add_definitions(-DBOOST_LOG_DYN_LINK)
 # find_package(Boost REQUIRED)
