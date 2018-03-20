@@ -77,12 +77,37 @@ void AdaDelta::resetCache()
   last_delta_par_.setZero(last_delta_par_.size());
 }
 
-parvec AdaDelta::getDeltaPar( func_t, grad_t g, parvec pars )
+parvec AdaDelta::getDeltaPar( func_t f, grad_t g, parvec pars )
 {
   parvec grad = g(pars); // an improvement might be to use an accelerated version
   // element-wise learn rate
   parvec adj_learn_rate = sqrt((accum_dpar_sq_ + ep_)/(accum_grad_sq_ + ep_));
 
+
+  // scaling down helps convergence but does seem to slow things down.
+  // perhaps a line search (golden section) would be an improvement
+  parvec dp = - learn_rate_ * adj_learn_rate * grad;
+  // we can do an explicit check to keep from over-stepping
+
+  // if ( f(pars+dp) > f(pars) ) {
+  //   // a rapidly-truncated golden section search would probably be better since we can restrict 0 < alpha < 1
+  //   // this actually ends up slowing down easy convergences so perhaps it's not the best approach
+  //   auto f_line = [&](double x){return f(pars + x*dp.array());};
+  //   double alpha_step = line_search( f_line, 0.7071067, 1.0 );
+
+  //   dp *= alpha_step;
+  //   grad *= alpha_step;
+  // }
+
+  // double fpars = f(pars);
+  // while ( f(pars+dp) > fpars ) {
+  //   // we have stepped so far that we are actually increasing
+  //   // this may not be appropriate or good in ML, but possibly necessary for some pathological test functions
+  //   dp *= 0.5;
+  //   grad *= 0.5;
+  // }
+
+  
   // now we update for the next iteration
   accum_grad_sq_ *= decay_scale_;
   accum_grad_sq_ += (1.0-decay_scale_)*(grad.square());  
@@ -109,7 +134,8 @@ parvec AdaDelta::getDeltaPar( func_t, grad_t g, parvec pars )
   // dbg++;
   
   // this parameter can be saved directly for the next iteration
-  last_delta_par_ = - learn_rate_ * adj_learn_rate * grad;
+  last_delta_par_ = dp;
+  
   return last_delta_par_;
   
   // return - learn_rate_ * sqrt((accum_dpar_sq_ + ep_)/(accum_grad_sq_ + ep_)) * grad;
@@ -140,8 +166,8 @@ parvec Bfgs::getDeltaPar( func_t f, grad_t g, parvec par )
   Eigen::VectorXd grad = g(par).matrix();
   // the hessian approximation should remain positive definite. LLT requires positive-definiteness.
   // LLT actually yields NaN solutions at times so perhaps our hessian is not always pos-def.
-  // Eigen::VectorXd deltap = - learn_rate_ * hessian_approx_.llt().solve(grad);
-  Eigen::VectorXd deltap = - learn_rate_ * hessian_approx_.ldlt().solve(grad);
+  Eigen::VectorXd deltap = - learn_rate_ * hessian_approx_.llt().solve(grad);
+  // Eigen::VectorXd deltap = - learn_rate_ * hessian_approx_.ldlt().solve(grad);
   // Eigen::VectorXd deltap = - learn_rate_ * hessian_approx_.householderQr().solve(grad); // no requirements on matrix for this
 
   // typically a line search is done to optimize the step size in the above direction. we'll just use a learning rate of 1 for now.
@@ -162,7 +188,9 @@ parvec Bfgs::getDeltaPar( func_t f, grad_t g, parvec par )
   //     std::cout << "and neither are the parameters" << std::endl;
   //   }
   // }
-  
+
+  // we might only want to do this line search if we see an increasing value f(p+dp) > f(p)
+  // , in which case a golden section search might be more efficient
   auto f_line = [&](double x){return f(par + x*deltap.array());};
   double alpha_step = line_search( f_line, 0.7071067, 1.0 );  
   // if (fabs(alpha_step) < 1e-2) {
@@ -198,7 +226,7 @@ double line_search( std::function<double(double)> f, double xa, double xb, size_
   for (size_t i_iter=0; i_iter<maxiter; ++i_iter ) {
     // check condition for standard deviation of f values being small, either absolutely or relatively depending on how large f is
     if (std::isnan(fa) || std::isnan(fb)) {
-      // don't waste time looping
+      // don't waste time looping if the values are nonsense
       break;
     }
     if ( (fa-fb)*(fa-fb) < tol*tol*(1.0 + (fa+fb)*(fa+fb)) ) {

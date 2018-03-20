@@ -10,14 +10,15 @@ void check_gradient(func_t f, grad_t g, parvec p, double ep=1e-6, double tol=1e-
   parvec evalgrad = g(p);
   double gradmag = sqrt(evalgrad.square().sum());
   parvec dir = (1.0+p.square()).sqrt()*evalgrad/gradmag; // vector along direction of greatest change
+  double dirmag = sqrt(dir.square().sum());
   // we should actually check the numerical derivative element-by-element
-  double deltaf = (f(p+ep*dir) - f(p-ep*dir))/(2*ep*sqrt(dir.square().sum())); // should be close to |gradf|
-  if ( fabs(deltaf) - gradmag > tol*fabs(deltaf + gradmag) ) {
+  double deltaf = (f(p+ep*dir) - f(p-ep*dir))/(2*ep*dirmag); // should be close to |gradf|
+  if ( fabs(deltaf) - (dir*evalgrad).sum()/dirmag > tol*fabs(deltaf + (dir*evalgrad).sum()/dirmag) ) {
     cout << "gradient check failed!" << endl;
     cout << "f(p) = " << f(p) << endl;
     cout << "numerical derivative = " << deltaf << endl;
-    cout << "analytic gradient magnitude = " << gradmag << endl;
-    cout << "difference = " << fabs(deltaf) - gradmag << endl;
+    cout << "analytic gradient magnitude = " << (dir*evalgrad).sum()/dirmag << endl;
+    cout << "difference = " << fabs(deltaf) - (dir*evalgrad).sum()/dirmag << endl;
   }
 }
 
