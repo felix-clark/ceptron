@@ -6,10 +6,11 @@
 using std::cout;
 using std::endl;
 
-void check_gradient(func_t f, grad_t g, parvec p, double ep=1e-6, double tol=1e-2) {
-  parvec evalgrad = g(p);
+template <size_t N>
+void check_gradient(func_t<N> f, grad_t<N> g, parvec<N> p, double ep=1e-6, double tol=1e-2) {
+  parvec<N> evalgrad = g(p);
   double gradmag = sqrt(evalgrad.square().sum());
-  parvec dir = (1.0+p.square()).sqrt()*evalgrad/gradmag; // vector along direction of greatest change
+  parvec<N> dir = (1.0+p.square()).sqrt()*evalgrad/gradmag; // vector along direction of greatest change
   double dirmag = sqrt(dir.square().sum());
   // we should actually check the numerical derivative element-by-element
   double deltaf = (f(p+ep*dir) - f(p-ep*dir))/(2*ep*dirmag); // should be close to |gradf|
@@ -22,27 +23,28 @@ void check_gradient(func_t f, grad_t g, parvec p, double ep=1e-6, double tol=1e-
   }
 }
 
-
+template <size_t N>
 struct min_result
 {
-  parvec x;
+  parvec<N> x;
   double f;
-  parvec grad;
+  parvec<N> grad;
   size_t iterations = 0;
   int fail = 0;
 };
 
-min_result test_min_step( IMinStep* minstep, func_t f, grad_t g, parvec initpars,
+template <size_t N>
+min_result<N> test_min_step( IMinStep<N>* minstep, func_t<N> f, grad_t<N> g, parvec<N> initpars,
 			  double abstol=1e-10, size_t maxsteps=64000 ) {
   assert( minstep != nullptr );
   minstep->resetCache(); // need to make sure caches are reset!
   
-  parvec pars = initpars;
+  parvec<N> pars = initpars;
   size_t n_iterations = 0;
   bool finished = false;
   while( !finished ) {
-    check_gradient( f, g, pars );
-    parvec dpars = minstep->getDeltaPar( f, g, pars );
+    check_gradient<N>( f, g, pars );
+    parvec<N> dpars = minstep->getDeltaPar( f, g, pars );
     if (isnan(dpars).any()) {
       cout << "NaN in proposed delta pars!" << endl;
       
@@ -60,14 +62,16 @@ min_result test_min_step( IMinStep* minstep, func_t f, grad_t g, parvec initpars
   return {pars, f(pars), g(pars), n_iterations};
 }
 
-void print_pars( parvec pars ) {
-  for (size_t i_par=0; i_par<pars.size(); ++i_par) {
+template <size_t N>
+void print_pars( parvec<N> pars ) {
+  for (size_t i_par=0; i_par<N; ++i_par) {
     cout << pars[i_par] << ", ";
   }
-  cout << endl;  
+  cout << endl;
 }
 
-void print_result( min_result res ) {
+template <size_t N>
+void print_result( min_result<N> res ) {
   cout << endl;
   if (res.fail) {
     cout << "fit did not converge!" << endl;
@@ -76,69 +80,73 @@ void print_result( min_result res ) {
   cout << "f(x) = " << f << endl;
   cout << "took " << res.iterations << " steps." << endl;
   cout << "gradient:\t";
-  print_pars( res.grad );
+  print_pars<N>( res.grad );
   cout << "x:\t";
-  print_pars( res.x );
+  print_pars<N>( res.x );
   cout << endl;
 }
 
-void run_test_functions( IMinStep* minstep, parvec initpars ) {
+template <size_t N>
+void run_test_functions( IMinStep<N>* minstep, parvec<N> initpars ) {
   assert( minstep != nullptr );
   
   cout << "testing basic ellipse function" << endl;
   // basic gradient descent has trouble with a large scale in ellipse function
   // use lambda function to automatically use default scale parameter
-  auto f_ellipse = [](parvec p){return ellipse(p);};
-  auto g_ellipse = [](parvec p){return grad_ellipse(p);};
-  min_result gd_result = test_min_step( minstep, f_ellipse, g_ellipse, initpars );
+  // auto f_ellipse = [](parvec<N> p){return ellipse<N>(p);};
+  std::function<double(parvec<N>)> f_ellipse = [](parvec<N> p){return ellipse<N>(p);};
+  // auto g_ellipse = [](parvec<N> p){return grad_ellipse<N>(p);};
+  std::function<parvec<N>(parvec<N>)> g_ellipse = [](parvec<N> p){return grad_ellipse<N>(p);};
+  min_result<N> gd_result = test_min_step<N>( minstep, f_ellipse, g_ellipse, initpars );
   cout << "final parameters for ellipse: ";
   print_result( gd_result );
 
   cout << "testing rosenbrock function" << endl;
-  auto f_rosen = [](parvec p){return rosenbrock(p);};
-  auto g_rosen = [](parvec p){return grad_rosenbrock(p);};  
-  min_result rosen_result = test_min_step( minstep, f_rosen, g_rosen, initpars );
+  auto f_rosen = [](parvec<N> p){return rosenbrock<N>(p);};
+  auto g_rosen = [](parvec<N> p){return grad_rosenbrock<N>(p);};  
+  min_result<N> rosen_result = test_min_step<N>( minstep, f_rosen, g_rosen, initpars );
   cout << "final parameters for rosenbrock: ";
   print_result( rosen_result );
 }
 
 int main( int argc, char** argv ) {
 
-  size_t ndim = 4;
-  // size_t ndim = 2;
-  parvec initpars(ndim);
-  initpars = 2 * parvec::Random(ndim);
+  constexpr size_t ndim = 4;
+  // constexpr size_t ndim = 2;
+  parvec<ndim> initpars;
+  initpars = 2 * parvec<ndim>::Random();
   cout << "initial parameters: ";
-  print_pars( initpars );
+  print_pars<ndim>( initpars );
   
-  GradientDescent gd(0.001);
+  GradientDescent<ndim> gd;
+  gd.setLearnRate(0.001);
   cout << "  ... gradient descent ..." << endl;
-  run_test_functions( &gd, initpars );
+  run_test_functions<ndim>( &gd, initpars );
 
-  GradientDescentWithMomentum gdm(ndim);
+  GradientDescentWithMomentum<ndim> gdm;
   gdm.setLearnRate(0.001); // default learn rate is too large for rosenbrock
   cout << "  ... MOM ..." << endl;
-  run_test_functions( &gdm, initpars );
+  run_test_functions<ndim>( &gdm, initpars );
 
-  AcceleratedGradient ag(ndim);
+  AcceleratedGradient<ndim> ag;
   // ag.setMomentumScale(0.5);
   ag.setLearnRate(0.001); // we need to turn down the learn rate significantly or it diverges on rosenbrock
   cout << "  ... NAG ..." << endl;
-  run_test_functions( &ag, initpars );
+  run_test_functions<ndim>( &ag, initpars );
 
   // ADADELTA converges in much fewer steps for basic sphere.
   // it seems to diverge for rosenbrock function right now...
   cout << "  ... ADADELTA ..." << endl;
-  AdaDelta ad(ndim);
+  AdaDelta<ndim> ad;
   // ad.setLearnRate(0.5);
   // ad.setDecayScale(0.5);
-  run_test_functions( &ad, initpars );
+  run_test_functions<ndim>( &ad, initpars );
 
   // BFGS isn't going to be useful for machine learning but let's compare it to other minimizers
   // it's possible that LBFGS can be used
   cout << "  ... BFGS ..." << endl;
-  Bfgs bfgs(ndim);
-  run_test_functions( &bfgs, initpars );
+  Bfgs<ndim> bfgs;
+  run_test_functions<ndim>( &bfgs, initpars );
   
   return 0;
 }
