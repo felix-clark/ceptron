@@ -53,14 +53,14 @@ private:
 template <size_t N, size_t M>
 double SingleHiddenLayer<N,M>::getOutput(const Mat<N, 1>& x0) const {
   // at some point we might wish to experiment with column-major (default) vs. row-major data storage order
-  const Mat<M, N+1>& A1 = getFirstSynapses();
-  const Mat<1, M+1>& A2 = getSecondSynapses();
-  const Mat<M, 1> y1 = A1.template leftCols<1>() // bias term
-    + A1.template rightCols<N>() * x0; // matrix mult term
-  const Mat<M, 1> x1 = sigmoid< Array<M> >(y1.array()).matrix(); // apply activation function element-wise; need to specify the template type
-  Mat<1,1> y2 = A2.template leftCols<1>()
-    + A2.template rightCols<M>() * x1;
+  const Mat<M, N+1>& w1 = getFirstSynapses();
+  const Mat<1, M+1>& w2 = getSecondSynapses();
+  const Mat<M, 1> a1 = w1.template leftCols<1>() // bias term
+    + w1.template rightCols<N>() * x0; // matrix mult term
+  const Mat<M, 1> x1 = sigmoid< Array<M> >(a1.array()).matrix(); // apply activation function element-wise; need to specify the template type
+  Mat<1,1> a2 = w2.template leftCols<1>()
+    + w2.template rightCols<M>() * x1;
 
-  return sigmoid(y2(0,0)); // this version is outputting a scalar; just access it directly
+  return sigmoid(a2(0,0)); // this version is outputting a scalar; just access it directly
 }
 
