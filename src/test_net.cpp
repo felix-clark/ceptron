@@ -101,6 +101,8 @@ int main(int argc, char** argv) {
   constexpr RegressionType Reg=RegressionType::Categorical;
   // constexpr RegressionType Reg=RegressionType::LeastSquares;
   constexpr InternalActivator Act=InternalActivator::Tanh;
+  // constexpr InternalActivator Act=InternalActivator::ReLU;
+  // constexpr InternalActivator Act=InternalActivator::Softplus;
   
   SingleHiddenLayer<Nin, Nh, Nout, Reg, Act> testNet;
   constexpr size_t netsize = testNet.size();
@@ -132,7 +134,8 @@ int main(int argc, char** argv) {
 
   testNet.randomInit();
   input.setRandom(); // should also check pathological x values
-  output << 0.99, 10.0; // yval > 1 should actually do something weird
+  output << 0.99, 10.0; // yval > 1 should actually do something weird. we now warn for this; the gradient seemed to work fine.
+  output << 0.9, -0.1; // negative values might have weirdness too
   check_gradient<Nin, Nout, netsize>( testNet, input, output );
   
   return 0;
