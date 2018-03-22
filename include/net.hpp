@@ -283,7 +283,7 @@ template <size_t N, size_t M, size_t P,
 	  RegressionType Reg,
 	  InternalActivator Act>	  
 void SingleHiddenLayer<N,M,P,Reg,Act>::fromFile(const string& fname) {
-  ifstream fin(fname/*, ios::binary*/);
+  ifstream fin(fname, ios::binary);
   if (!fin.is_open()) {
     cout << "could not open file " << fname << " for reading." << endl;
     return;
