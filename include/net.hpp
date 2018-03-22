@@ -239,6 +239,8 @@ template <size_t N, size_t M, size_t P,
 	  RegressionType Reg,
 	  InternalActivator Act>	  
 istream& operator>>(istream& in, SingleHiddenLayer<N, M, P, Reg, Act>& me) {
+  // TODO: some metadata at the top would be nice for verification
+  // let's wait until we have a more general setup (e.g. multilayer) before we worry about that.
   for (size_t i=0; i<me.size_; ++i) {
     // the fact that this one line doesn't work is actually either a bug in g++ or a flaw in the standards.
     // it may be fixed in C++ 17 but g++ isn't there yet.
@@ -258,7 +260,7 @@ template <size_t N, size_t M, size_t P,
 ostream& operator<<(ostream& out, const SingleHiddenLayer<N, M, P, Reg, Act>& me) {
   for (size_t i=0; i<me.size_; ++i) {
     // we do want to go hexfloat, otherwise we suffer a precision loss
-    out << std::hexfloat << me.net_(i) << '\n';// removing newline doesn't work even w/ binary, possibly because of the issue discussed in operation >>.
+    out << std::hexfloat << me.net_(i) << '\n';// removing newline doesn't work even w/ binary, possibly because of the issue discussed in operatior>>().
   }
   return out;
 }
@@ -286,13 +288,6 @@ void SingleHiddenLayer<N,M,P,Reg,Act>::fromFile(const string& fname) {
     cout << "could not open file " << fname << " for reading." << endl;
     return;
   }
-  // the ios::ate flag puts us at the end which will let us count the total size
-  // fin.seekg(0,ios::end);
-  // std::streampos size = fin.tellg();
-  // cout << "size = " << size << endl;
-  // cout << "should be: " << this->size() << endl;
-  // fin.seekg(0, ios::beg); // put us a distance 0 away from the beginning
-  // fin.read( net_.data(), size ); // copy directly into data array
   fin >> *this; // streams are not efficient
   fin.close();
 }
