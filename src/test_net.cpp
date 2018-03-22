@@ -139,6 +139,17 @@ int main(int argc, char** argv) {
   output << 0.99, 10.0; // yval > 1 should actually do something weird. we now warn for this; the gradient seemed to work fine.
   output << 0.9, -0.1; // negative values might have weirdness too
   check_gradient<Nin, Nout, netsize>( testNet, input, output );
+
+  testNet.toFile("testcopy.net");
+  SingleHiddenLayer<Nin, Nh, Nout, Reg, Act> netCopy;
+  netCopy.fromFile("testcopy.net");
+  if ( testNet != netCopy) {
+    cout << "loaded net is not the same!" << endl;
+    cout << "original:\n" << testNet.getNetValue().transpose().format(my_fmt) << endl;
+    cout << "copy:\n" << netCopy.getNetValue().transpose().format(my_fmt) << endl;
+    auto diff = testNet.getNetValue() - netCopy.getNetValue();
+    cout << "difference:\n" << diff.transpose().format(my_fmt) << endl;      
+  }
   
   return 0;
 }

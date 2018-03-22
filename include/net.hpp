@@ -2,7 +2,8 @@
 #include "activation.hpp"
 #include <Eigen/Dense>
 
-#include <iostream> // again, temporary for debugging only. well, we should get a logging library working
+#include <iostream>
+#include <fstream>
 
 namespace { // protect these definitions locally, at least for now until we come up with a better global scheme
   template <size_t M, size_t N>
@@ -14,6 +15,15 @@ namespace { // protect these definitions locally, at least for now until we come
   using Array = Eigen::Array<double, M, 1>;
 
   using Eigen::Map;
+
+  using std::cout;
+  using std::endl;
+  using std::string;
+  using std::istream;
+  using std::ostream;
+  using std::ifstream;
+  using std::ofstream;
+  using std::ios;
 }
 
 // an interface class for NNs that takes only number of inputs and number of outputs.
@@ -30,7 +40,7 @@ public:
   // Array<Nin+1> getInputLayerActivation() const = 0; // do we actually need this in the interface?
   virtual const Array<Ntot>& getNetValue() const = 0;
   virtual Array<Ntot>& accessNetValue() = 0; // allows use of in-place operations
-
+  // do we need interfaces for read/write/serialization in here?
 };
 
 // we will really want to break this apart (into layers?) and generalize it but first let's get a simple working example.
@@ -77,6 +87,26 @@ public:
   Array<size_>& accessNetValue() override {return net_;} // allows use of in-place operations
   void resetCache();
   void setL2RegParam(double lambda); // set a parameter to add a regularization term lambda*sum(net values squared). TODO: implement this
+
+  bool operator==(const SingleHiddenLayer<N,M,P,Reg,Act>& other) const;
+  bool operator!=(const SingleHiddenLayer<N,M,P,Reg,Act>& other) const {return !(this->operator==(other));}
+
+  // using stream operators is not a precise or efficient way to store doubles.
+  // we'll save/load as binary, and there are better ways to do so directly.
+  // see: http://www.cplusplus.com/doc/tutorial/files/
+  // overload streaming operators for input/output
+  // not re-doing this template declaration leads to warnings. we might be fine without it, however.
+  template<size_t Nf, size_t Mf, size_t Pf,
+  	   RegressionType Regf,
+  	   InternalActivator Actf>
+  friend istream& operator>>(istream& in, SingleHiddenLayer<Nf, Mf, Pf, Regf, Actf>& me);
+  template<size_t Nf, size_t Mf, size_t Pf,
+  	   RegressionType Regf,
+  	   InternalActivator Actf>
+  friend ostream& operator<<(ostream& out, const SingleHiddenLayer<Nf, Mf, Pf, Regf, Actf>& me);
+  void toFile(const string& fname) const;
+  void fromFile(const string& fname);
+  
 private:
   // we could also store these as matrices and map to an array using segment<>
   Array<size_> net_ = Array<size_>::Zero();  
@@ -196,3 +226,72 @@ void SingleHiddenLayer<N,M,P,Reg,Act>::propagateData(const Vec<N>& x0, const Vec
   
 }
 
+
+template <size_t N, size_t M, size_t P,
+	  RegressionType Reg,
+	  InternalActivator Act>	  
+bool SingleHiddenLayer<N,M,P,Reg,Act>::operator==(const SingleHiddenLayer<N,M,P,Reg,Act>& other) const {
+  return (this->net_ == other.net_).all();
+}
+
+template <size_t N, size_t M, size_t P,
+	  RegressionType Reg,
+	  InternalActivator Act>	  
+istream& operator>>(istream& in, SingleHiddenLayer<N, M, P, Reg, Act>& me) {
+  for (size_t i=0; i<me.size_; ++i) {
+    // the fact that this one line doesn't work is actually either a bug in g++ or a flaw in the standards.
+    // it may be fixed in C++ 17 but g++ isn't there yet.
+    // in >> std::hexfloat >> me.net_(i);    
+    // see: https://stackoverflow.com/questions/42604596/read-and-write-using-stdhexfloat for link to discussion as well as this workaround suggestion.
+    
+    std::string s;
+    in >> std::hexfloat >> s;
+    me.net_(i) = std::strtod(s.data(), nullptr);
+  }
+  return in;
+}
+
+template <size_t N, size_t M, size_t P,
+	  RegressionType Reg,
+	  InternalActivator Act>	  
+ostream& operator<<(ostream& out, const SingleHiddenLayer<N, M, P, Reg, Act>& me) {
+  for (size_t i=0; i<me.size_; ++i) {
+    // we do want to go hexfloat, otherwise we suffer a precision loss
+    out << std::hexfloat << me.net_(i) << '\n';// removing newline doesn't work even w/ binary, possibly because of the issue discussed in operation >>.
+  }
+  return out;
+}
+
+
+template <size_t N, size_t M, size_t P,
+	  RegressionType Reg,
+	  InternalActivator Act>	  
+void SingleHiddenLayer<N,M,P,Reg,Act>::toFile(const string& fname) const {
+  // ios::trunc erases any previous content in the file.
+  ofstream fout(fname , ios::binary | ios::trunc );
+  if (!fout.is_open()) {
+    cout << "could not open file " << fname << " for writing." << endl;
+  }
+  fout << *this;
+  fout.close();
+}
+
+template <size_t N, size_t M, size_t P,
+	  RegressionType Reg,
+	  InternalActivator Act>	  
+void SingleHiddenLayer<N,M,P,Reg,Act>::fromFile(const string& fname) {
+  ifstream fin(fname/*, ios::binary*/);
+  if (!fin.is_open()) {
+    cout << "could not open file " << fname << " for reading." << endl;
+    return;
+  }
+  // the ios::ate flag puts us at the end which will let us count the total size
+  // fin.seekg(0,ios::end);
+  // std::streampos size = fin.tellg();
+  // cout << "size = " << size << endl;
+  // cout << "should be: " << this->size() << endl;
+  // fin.seekg(0, ios::beg); // put us a distance 0 away from the beginning
+  // fin.read( net_.data(), size ); // copy directly into data array
+  fin >> *this; // streams are not efficient
+  fin.close();
+}
