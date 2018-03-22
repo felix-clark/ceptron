@@ -100,9 +100,11 @@ int main(int argc, char** argv) {
   constexpr size_t Nout = 2;
   constexpr RegressionType Reg=RegressionType::Categorical;
   // constexpr RegressionType Reg=RegressionType::LeastSquares;
-  constexpr InternalActivator Act=InternalActivator::Tanh;
-  // constexpr InternalActivator Act=InternalActivator::ReLU;
-  // constexpr InternalActivator Act=InternalActivator::Softplus;
+  // constexpr InternalActivator Act=InternalActivator::Tanh;
+  // constexpr InternalActivator Act=InternalActivator::ReLU; // we had gradient issues w/ this because we were overriding it accidentally
+  // however the nested select() to attempt to check for x=0 screws up the gradient completely
+  // constexpr InternalActivator Act=InternalActivator::LReLU;
+  constexpr InternalActivator Act=InternalActivator::Softplus;
   
   SingleHiddenLayer<Nin, Nh, Nout, Reg, Act> testNet;
   constexpr size_t netsize = testNet.size();

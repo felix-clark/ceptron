@@ -13,7 +13,7 @@
 // but it's a pedagogical choice so we'll keep it as an option.
 // Tanh is better (since it's centered around 0) but rectified linear units (ReLU) and variations are popular now.
 // Softplus is a smooth version of an ReLU but is not as trivial to get the derivative of.
-enum class InternalActivator {Logit, Tanh, ReLU, Softplus};
+enum class InternalActivator {Logit, Tanh, ReLU, Softplus, LReLU};
 /// a number of activation functions can be generalized with hyperparameters, even on a per-channel level.
 // implementing this will require some interface changes, but it's not yet a priority in terms of making this library useful.
 // see https://arxiv.org/pdf/1710.05941.pdf for an exploration of various other activation functions
@@ -81,10 +81,14 @@ template <>
 template <typename ArrT>
 ArrT ActivFunc<InternalActivator::ReLU>::activToD(const ArrT& act) {
   // maybe return 0.5 at zero exactly to give nets that are zero-initialized some gradient
+  // somehow nested selects is screwing up the result??
+  // return (act > 0).select(ArrT::Ones(),
+  // 			  (act < 0).select(ArrT::Zero(),
+  // 					   ArrT::Constant(0.5)));
+  // return (act > 0).select(ArrT::Ones(),
+  // 			  (act < 0).select(ArrT::Zero(),
+  // 					   0.5*ArrT::Ones())); // this also fails
   return (act > 0).select(ArrT::Ones(), ArrT::Zero());
-  return (act > 0).select(ArrT::Ones(),
-  			  (act < 0).select(ArrT::Zero(),
-  					   ArrT::Constant(0.5)));
 }
 
 // ---- softplus ----
@@ -101,4 +105,27 @@ template <>
 template <typename ArrT>
 ArrT ActivFunc<InternalActivator::Softplus>::activToD(const ArrT& act) {
   return 1.0 - exp(-act);
+}
+
+// ---- LReLU ----
+// a ReLU with a "leaky" term at x < 0. helps gradients be nonzero.
+// the slope at x < 0 should really be an adjustable hyperparameter, and can even be tweaked on a per-channel basis.
+
+template <>
+template <typename ArrT>
+ArrT ActivFunc<InternalActivator::LReLU>::activ(const ArrT& in) {
+  constexpr double alpha = 1.0/128.0;
+  return (in >= 0).select(in, alpha*in);
+}
+
+template <>
+template <typename ArrT>
+ArrT ActivFunc<InternalActivator::LReLU>::activToD(const ArrT& act) {
+  constexpr double alpha = 1.0/128.0;
+  // maybe return 0.5 at zero exactly to give nets that are zero-initialized some gradient
+  return (act > 0).select(ArrT::Ones(), alpha*ArrT::Ones());
+  // need to address why this is breaking at some point.
+  // return (act > 0).select(ArrT::Ones(),
+  // 			  (act < 0).select(alpha*ArrT::Ones(),
+  // 					   0.5*(1+alpha)*ArrT::Ones()));
 }
