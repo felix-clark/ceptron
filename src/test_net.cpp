@@ -98,9 +98,11 @@ int main(int argc, char** argv) {
   constexpr size_t Nin = 6;
   constexpr size_t Nh = 4;
   constexpr size_t Nout = 2;
+  constexpr RegressionType Reg=RegressionType::Categorical;
+  // constexpr RegressionType Reg=RegressionType::LeastSquares;
   constexpr InternalActivator Act=InternalActivator::Tanh;
   
-  SingleHiddenLayer<Nin, Nh, Nout, Act> testNet;
+  SingleHiddenLayer<Nin, Nh, Nout, Reg, Act> testNet;
   constexpr size_t netsize = testNet.size();
   testNet.randomInit();
 

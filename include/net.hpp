@@ -1,4 +1,5 @@
-#include "activator.hpp"
+#include "regression.hpp"
+#include "activation.hpp"
 #include <Eigen/Dense>
 
 #include <iostream> // again, temporary for debugging only
@@ -15,33 +16,6 @@ namespace { // protect these definitions locally, at least for now until we come
   using Eigen::Map;
 }
 
-
-// move this code to a class determining regression type
-// exclusive softmax: it assumes that categories are exclusive and that "none" is a possible category.
-// most direct extension of logit for P > 1 dimensions.
-// intended for use at output layer only : derivative has convenient cancellation
-// template <typename Derived>
-// Eigen::ArrayBase<Derived> softmax_ex(const Derived& in) { // i think this should work fine, but does require template argument to function
-//   using Eigen::exp;
-//   // Derived expvals = exp(in);
-//   // // Array<1> expvals = exp(in);
-//   // double normfact = 1.0 + expvals.sum();
-//   // return expvals / normfact; // traditionally, softmax does not have this extra 1 term
-//   return exp(in)/(1.0 + exp(in).sum());
-// }
-// for some reason we have to specify the Array below and can't use the pattern above... too tired to get it rn
-template <size_t N>
-Array<N> softmax_ex(const Array<N>& in) { // i think this should work fine, but does require template argument to function
-  using Eigen::exp;
-  Array<N> expvals = exp(in).eval();
-  return expvals / (1.0 + expvals.sum()); // traditionally, softmax does not have this extra 1 term
-}
-
-enum class Regression {Categorical, LeastSquares};
-// "Categorical" is "exclusive categorical", meaning |y| <= 0 and an implied "none" category is used
-// for non-exclusive classification, independent NNs can be used.
-
-
 // an interface class for NNs that takes only number of inputs and number of outputs.
 // we could probably use a better name for  this
 template <size_t Nin, size_t Nout, size_t Ntot>
@@ -53,24 +27,25 @@ public:
   virtual void propagateData(const Vec<Nin>& x0, const Vec<Nout>& y) = 0;
   virtual double getCostFuncVal() const = 0;
   virtual const Array<Ntot>& getCostFuncGrad() const = 0;
-  // Array<N+1> getInputLayerActivation() const = 0; // do we actually need this in the interface?
+  // Array<Nin+1> getInputLayerActivation() const = 0; // do we actually need this in the interface?
   virtual const Array<Ntot>& getNetValue() const = 0;
   virtual Array<Ntot>& accessNetValue() = 0; // allows use of in-place operations
 
 };
 
 // we will really want to break this apart (into layers?) and generalize it but first let's get a simple working example.
-// maybe this model should be called a "FeedForward" NN
 // this is a "single hidden layer feedforward network" (SLFN) with 1 output
-// specifically, right now it's an (exclusive) classifier which implies logit/softmax on the output gate.
-// for a y-value of zero, it is taken to mean that the data represents none of the output classes.
 // N is input size, M is hidden layer size, P is output size
-template <size_t N, size_t M, size_t P=1/*,
-					  Regression Reg=Regression::Categorical*/,
-	    InternalActivator Act=InternalActivator::Tanh>
-// should inherit from some more general neural network interface once we get that going, as well as a template interface depending only on the number of input and output layers.
-class SingleHiddenLayer : public virtual IFeedForward<N, P, M*(N+1)+P*(M+1)>, // we have a shortcut for this below; it's not ideal to manually compute the size twice
-			  protected ActivFunc<Act>
+template <size_t N, size_t M, size_t P=1,
+	  RegressionType Reg=RegressionType::Categorical,
+	  InternalActivator Act=InternalActivator::Tanh>
+class SingleHiddenLayer
+  : public virtual IFeedForward<N, P, M*(N+1)+P*(M+1)>
+    // we have a shortcut for the total size parameter M*(N+1)+P*(M+1) below;
+    //  it's not ideal to manually compute the size twice.
+    // could get around it w/ C macros, but ideally we could avoid that
+    , protected Regressor<Reg>
+    , protected ActivFunc<Act>
 {
 private:
   static constexpr size_t size_w1_ = M*(N+1); // first layer
@@ -97,10 +72,10 @@ public:
   auto getFirstSynapses() const {return Map< const Mat<M, N+1> >(net_.data());};
   auto getSecondSynapses() const
   {return Map< const Mat<P, M+1> >(net_.template segment<size_w2_>(size_w1_).data());};
-  const Array<size_>& getNetValue() const {return net_.eval();}  // these functions are the ones that need to be worked out for non-trivial passing of matrix data as an array. TODO: try an example
+  const Array<size_>& getNetValue() const override {return net_.eval();}  // these functions are the ones that need to be worked out for non-trivial passing of matrix data as an array. TODO: try an example
   // void setNetValue(const Eigen::Ref<const Array<size_>>& in) {net_ = in;}
   // auto& accessNetValue() {return net_;} // allows use of in-place operations
-  Array<size_>& accessNetValue() {return net_;} // allows use of in-place operations
+  Array<size_>& accessNetValue() override {return net_;} // allows use of in-place operations
   void resetCache();
   void setL2RegParam(double lambda); // set a parameter to add a regularization term lambda*sum(net values squared). TODO: implement this
 private:
@@ -119,10 +94,10 @@ private:
 };
 
 // this operation just resets all data to zero and so may not be particularly useful except perhaps for validation
-template <size_t N, size_t M, size_t P/*,
-					Regression Reg*/,
-	    InternalActivator Act>
-void SingleHiddenLayer<N,M,P/*,Reg*/,Act>::resetCache() {
+template <size_t N, size_t M, size_t P,
+	  RegressionType Reg,
+	  InternalActivator Act>
+void SingleHiddenLayer<N,M,P,Reg,Act>::resetCache() {
   input_layer_cache_ = Vec<N+1>::Identity();
   hidden_layer_cache_ = Vec<M+1>::Identity();
   output_layer_cache_ = Vec<P>::Zero();
@@ -137,10 +112,10 @@ void SingleHiddenLayer<N,M,P/*,Reg*/,Act>::resetCache() {
 
 // should really consider changing the interface to have the parameters be external, but this is probably only useful for validation;
 //  for real training, it will help to have the gradient stored (except perhaps accelerated gradient)
-template <size_t N, size_t M, size_t P,/*,
-					Regression Reg,*/
+template <size_t N, size_t M, size_t P,
+	  RegressionType Reg,
 	  InternalActivator Act>
-void SingleHiddenLayer<N,M,P/*,Reg*/,Act>::propagateData(const Vec<N>& x0, const Vec<P>& y) {
+void SingleHiddenLayer<N,M,P,Reg,Act>::propagateData(const Vec<N>& x0, const Vec<P>& y) {
   // resetCache(); // ? shouldn't actually be necessary; should compare in checks
 
   // if ExclusiveClassifier:
@@ -167,7 +142,8 @@ void SingleHiddenLayer<N,M,P/*,Reg*/,Act>::propagateData(const Vec<N>& x0, const
   Vec<P> a2 = w2 * hidden_layer_cache_;
 
   // normalize output layer by including an additional category not in the output layer (so P=1 is identical to the basic case)
-  output_layer_cache_ = softmax_ex<P>(a2.array()).matrix();
+  // output_layer_cache_ = softmax_ex<P>(a2.array()).matrix();
+  output_layer_cache_ = Regressor<Reg>::template outputGate< Array<P> >(a2.array()).matrix();
   output_value_cache_ = y;
 
   // now do backwards propagation
@@ -205,7 +181,7 @@ void SingleHiddenLayer<N,M,P/*,Reg*/,Act>::propagateData(const Vec<N>& x0, const
 
   // Vec<M> e1 = logit_to_d<M>(hidden_layer_cache_.template segment<M>(1).array()).matrix(); // ignores bias term explicitly
   // ignores bias term explicitly:
-  Vec<M> e1 = ActivFunc<Act>::template activ_to_d< Array<M> >(hidden_layer_cache_.template segment<M>(1).array()).matrix();
+  Vec<M> e1 = ActivFunc<Act>::template activToD< Array<M> >(hidden_layer_cache_.template segment<M>(1).array()).matrix();
   
   Vec<M> d1 = e1.asDiagonal() * (w2.template rightCols<M>()).transpose() * d2;
 
@@ -225,14 +201,18 @@ void SingleHiddenLayer<N,M,P/*,Reg*/,Act>::propagateData(const Vec<N>& x0, const
 
 // define these here for now; they may stay this simple but they also may not.
 // should cache outputs and then template-specialize this based on the settings (i.e. classifier vs. least-squares)
-template <size_t N, size_t M, size_t P, InternalActivator Act>
+template <size_t N, size_t M, size_t P,
+	  RegressionType Reg,
+	  InternalActivator Act>
+// this one should actually be specified by the Regressor interface
 // we can't partially-specialize a member function... this is going to get really annoying.
 // will need to find a workaround.
 // see first: https://stackoverflow.com/questions/165101/invalid-use-of-incomplete-type-error-with-partial-template-specialization
 // seems like we need to separate template parameters around w/ inheritance structure
-double SingleHiddenLayer<N,M,P/*,Regression::Categorical*/,Act>::getCostFuncVal() const {
-  return  - (output_value_cache_.array()*log(output_layer_cache_.array())).sum()
-    - (1-output_value_cache_.array().sum())*log1p(-output_layer_cache_.array().sum());
+double SingleHiddenLayer<N,M,P,Reg,Act>::getCostFuncVal() const {
+  return Regressor<Reg>::template costFuncVal< Array<P> >(output_layer_cache_.array(), output_value_cache_.array());
+  // return  - (output_value_cache_.array()*log(output_layer_cache_.array())).sum()
+  //   - (1-output_value_cache_.array().sum())*log1p(-output_layer_cache_.array().sum());
     // we shouldn't need a guard for when sum of output layers = 1 w/ softmax gate
 }
 

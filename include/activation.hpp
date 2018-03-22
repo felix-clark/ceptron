@@ -16,7 +16,7 @@ class ActivFunc
 {
 public:
   template <typename ArrT> ArrT activ(const ArrT& in);
-  template <typename ArrT> ArrT activ_to_d(const ArrT& act); // sig -> sig', not x -> sig'
+  template <typename ArrT> ArrT activToD(const ArrT& act); // sig -> sig', not x -> sig'
   // another function like dactive_from_in would compute the derivative directly from the input,
   //  which might be necessary for the less nice activation choices
 };
@@ -37,7 +37,7 @@ ArrT ActivFunc<InternalActivator::Logit>::activ(const ArrT& in) {
 
 template <>
 template <typename ArrT>
-ArrT ActivFunc<InternalActivator::Logit>::activ_to_d(const ArrT& act) {
+ArrT ActivFunc<InternalActivator::Logit>::activToD(const ArrT& act) {
   using Eigen::exp;
   return act*(1.0-act);
 }
@@ -51,7 +51,7 @@ ArrT ActivFunc<InternalActivator::Tanh>::activ(const ArrT& in) {
 
 template <>
 template <typename ArrT>
-ArrT ActivFunc<InternalActivator::Tanh>::activ_to_d(const ArrT& act) {
+ArrT ActivFunc<InternalActivator::Tanh>::activToD(const ArrT& act) {
   return 1.0-act.square();
 }
 
