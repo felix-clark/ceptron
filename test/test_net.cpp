@@ -95,9 +95,9 @@ void check_gradient(IFeedForward<Nin, Nout, Ntot>& net, const Vec<Nin>& xin, con
 
 int main(int argc, char** argv) {
 
-  constexpr size_t Nin = 6;
+  constexpr size_t Nin = 8;
   constexpr size_t Nh = 4;
-  constexpr size_t Nout = 2;
+  constexpr size_t Nout = 4;
   constexpr RegressionType Reg=RegressionType::Categorical;
   // constexpr RegressionType Reg=RegressionType::LeastSquares;
   // constexpr InternalActivator Act=InternalActivator::Tanh;
@@ -114,7 +114,7 @@ int main(int argc, char** argv) {
   input.setRandom();
 
   Vec<Nout> output;
-  output << 0.5, 0.5;
+  output << 0.5, 0.25, 0.1, 0.01;
   
   testNet.propagateData( input, output );
   cout << "input data is:  " << input.transpose().format(my_fmt) << endl;
@@ -131,13 +131,13 @@ int main(int argc, char** argv) {
 
   testNet.randomInit();
   input.setRandom();
-  output << 0.02, 0.2;
+  output << 1e-6, 0.02, 0.2, 0.01;
   check_gradient<Nin, Nout, netsize>( testNet, input, output );
 
   testNet.randomInit();
   input.setRandom(); // should also check pathological x values
-  output << 0.99, 10.0; // yval > 1 should actually do something weird. we now warn for this; the gradient seemed to work fine.
-  output << 0.9, -0.1; // negative values might have weirdness too
+  // output << 0.9, -0.1, 10.0, 0.1; // this one has nonsensical values but we can check the gradient regardless (it may give warning messages)
+  output.setRandom();
   check_gradient<Nin, Nout, netsize>( testNet, input, output );
 
   testNet.toFile("testcopy.net");

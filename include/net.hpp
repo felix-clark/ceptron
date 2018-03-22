@@ -158,6 +158,7 @@ void SingleHiddenLayer<N,M,P,Reg,Act>::propagateData(const Vec<N>& x0, const Vec
     // this if statement should be optimized away at compile-time
     if (y.sum() > 1.0) {
       // multiple nets can be used for non-exclusive categories
+      // TODO: implement logging system, and suppress this warning
       std::cout << "warning: classification data breaks unitarity. this net assumes mutually exclusive categories." << std::endl;
       std::cout << "debug: y values:" << y.transpose() << std::endl;
     }
