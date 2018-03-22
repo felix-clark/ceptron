@@ -2,7 +2,7 @@
 #include "activation.hpp"
 #include <Eigen/Dense>
 
-#include <iostream> // again, temporary for debugging only
+#include <iostream> // again, temporary for debugging only. well, we should get a logging library working
 
 namespace { // protect these definitions locally, at least for now until we come up with a better global scheme
   template <size_t M, size_t N>
@@ -54,7 +54,6 @@ private:
 public:
   // SingleHiddenLayer() {};
   // ~SingleHiddenLayer() {};
-  // constexpr static size_t size() {return size_;} // needs to be declared explicitly static to work. now in base class
   void randomInit() {net_.setRandom();};
   const Vec<P>& getOutput() const override {return  output_layer_cache_.eval();}; // returns cache
   // maybe we should have a function like setInput() and otherwise don't allow new input arrays, so it's clear what changes the cache
@@ -84,16 +83,16 @@ private:
   // we should also cache the activation layer values. this will be necessary for efficient backpropagation.
   // possibly will need to do this for multiple input/output sets at once, for minibatch gradient descent,
   // although this loop may be able to work externally
-  //  store the bias terms in the cache for convenience ?
+  //  store the bias terms in the cache for convenience
   Vec<N+1> input_layer_cache_ = Vec<N+1>::Identity(); // trick to set 1st element to 1 be default: bias term
   Vec<M+1> hidden_layer_cache_ = Vec<M+1>::Identity();
-  Vec<P> output_layer_cache_ = Vec<P>::Zero(); // no bias layer in output. normalization will be implied w/ an extra softmax term
+  Vec<P> output_layer_cache_ = Vec<P>::Zero(); // no bias layer in output.
   Array<size_> net_grad_cache_ = Array<size_>::Zero(); // may not be necessary for this SLFN, but when we break up into layers it might be
   Vec<P> output_value_cache_ = Vec<P>::Zero();
   // possible other parameters: regularization; normalization of cost function
 };
 
-// this operation just resets all data to zero and so may not be particularly useful except perhaps for validation
+// this operation just resets all data to zero and so may not be particularly useful except perhaps for validation and sanity checks
 template <size_t N, size_t M, size_t P,
 	  RegressionType Reg,
 	  InternalActivator Act>
@@ -103,6 +102,13 @@ void SingleHiddenLayer<N,M,P,Reg,Act>::resetCache() {
   output_layer_cache_ = Vec<P>::Zero();
   output_value_cache_ = Vec<P>::Zero();
   net_grad_cache_ = Array<size_>::Zero();
+}
+
+template <size_t N, size_t M, size_t P,
+	  RegressionType Reg,
+	  InternalActivator Act>
+double SingleHiddenLayer<N,M,P,Reg,Act>::getCostFuncVal() const {
+  return Regressor<Reg>::template costFuncVal< Array<P> >(output_layer_cache_.array(), output_value_cache_.array());
 }
 
 
@@ -118,31 +124,30 @@ template <size_t N, size_t M, size_t P,
 void SingleHiddenLayer<N,M,P,Reg,Act>::propagateData(const Vec<N>& x0, const Vec<P>& y) {
   // resetCache(); // ? shouldn't actually be necessary; should compare in checks
 
-  // if ExclusiveClassifier:
-  //   check that sum(y) <= 1
+  if (Reg == RegressionType::Categorical) {
+    // this if statement should be optimized away at compile-time
+    if (y.sum() > 1.0) {
+      // multiple nets can be used for non-exclusive categories
+      std::cout << "warning: classification data breaks unitarity. this net assumes mutually exclusive categories." << std::endl;
+      std::cout << "debug: y values:" << y.transpose() << std::endl;
+    }
+  }
   
   // propagate forwards
   Mat<M, N+1> w1 = getFirstSynapses(); // don't think there is copying here for a Map object... but we should verify how it actually works.
   Mat<P, M+1> w2 = getSecondSynapses(); // const references shouldn't be necessary for the expression templates to work
 
-  // input_layer_cache_(0) = 1.;
-  // hidden_layer_cache_(0) = 1.;
   input_layer_cache_.template segment<N>(1) = x0; // offset bias term
   // at some point we might wish to experiment with column-major (default) vs. row-major data storage order
-  // Vec<M> a1 = w1.template leftCols<1>() // bias term
-  //   + w1.template rightCols<N>() * input_layer_cache; // matrix mult term
   Vec<M> a1 = w1 * input_layer_cache_; // matrix mult term
   // apply activation function element-wise; need to specify the template type
-  // hidden_layer_cache_.template segment<M>(1) = logit< M >(a1.array()).matrix().eval();  // offset with bias term
   hidden_layer_cache_.template segment<M>(1) =
     ActivFunc<Act>::template activ< Array<M> >(a1.array()).matrix().eval();
-  // Vec<1> a2 = w2.template leftCols<1>()
-  //   + w2.template rightCols<M>() * hidden_layer_cache_;
+  
   assert( input_layer_cache_(0) == 1. && hidden_layer_cache_(0) == 1.);
+  
   Vec<P> a2 = w2 * hidden_layer_cache_;
 
-  // normalize output layer by including an additional category not in the output layer (so P=1 is identical to the basic case)
-  // output_layer_cache_ = softmax_ex<P>(a2.array()).matrix();
   output_layer_cache_ = Regressor<Reg>::template outputGate< Array<P> >(a2.array()).matrix();
   output_value_cache_ = y;
 
@@ -152,14 +157,6 @@ void SingleHiddenLayer<N,M,P,Reg,Act>::propagateData(const Vec<N>& x0, const Vec
 
   // there is usually a 1/N term for the number of data points as well; perhaps should be handled externally
   // or maybe this should be 1/N(output layers), since a 2-output probability net should be the same as a 1-output one
-  
-  /// note that this term has exact cancellation with 1st term of backprop w/ logit activation
-  // , since 1st term is sigma'(a^2) = sigma*(1-sigma)
-  // it probably makes sense to use a logit activation on the final layer (or softmax for multi-dimensional) regardless of internal activation functions
-  // double logistic_term = (output_layer_cache_ - y)/(output_layer_cache_*(1-output_layer_cache_)); // the denominator cancels out of logit/softmax
-  // there are cross-terms for softmax if the cost function is the sum of that in all nodes. check this for the multidimensional case! -- yes, the cancellation works just the same.
-  // for the multidimensional case, should there be an implied additional case for noise? (i.e. for which y=0 in all bins) it probably won't affect logistic regression, but the cost function is different.
-  // this might actually have the same cancelation in least-square...?
   
   // the other term in the product is dx^out/d(p), which has a layer-dependent form
     // derivative of softmax sm(x) is dsm(a_j)/d(a_k) = sm(a_j)*[delta_jk - sm(a_k)]
@@ -197,22 +194,5 @@ void SingleHiddenLayer<N,M,P,Reg,Act>::propagateData(const Vec<N>& x0, const Vec
   // net_grad_cache_.template segment<size_w1_>(0) = Map< Array<size_w1_> >(grad_w1.data());
   // net_grad_cache_.template segment<size_w2_>(size_w1_) = Map< Array<size_w2_> >(grad_w2.data());
   
-}
-
-// define these here for now; they may stay this simple but they also may not.
-// should cache outputs and then template-specialize this based on the settings (i.e. classifier vs. least-squares)
-template <size_t N, size_t M, size_t P,
-	  RegressionType Reg,
-	  InternalActivator Act>
-// this one should actually be specified by the Regressor interface
-// we can't partially-specialize a member function... this is going to get really annoying.
-// will need to find a workaround.
-// see first: https://stackoverflow.com/questions/165101/invalid-use-of-incomplete-type-error-with-partial-template-specialization
-// seems like we need to separate template parameters around w/ inheritance structure
-double SingleHiddenLayer<N,M,P,Reg,Act>::getCostFuncVal() const {
-  return Regressor<Reg>::template costFuncVal< Array<P> >(output_layer_cache_.array(), output_value_cache_.array());
-  // return  - (output_value_cache_.array()*log(output_layer_cache_.array())).sum()
-  //   - (1-output_value_cache_.array().sum())*log1p(-output_layer_cache_.array().sum());
-    // we shouldn't need a guard for when sum of output layers = 1 w/ softmax gate
 }
 
