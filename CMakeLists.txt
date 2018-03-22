@@ -15,21 +15,20 @@ set(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 include_directories(include ${CMAKE_INSTALL_PREFIX}/include/eigen3)
 
 # source files can be manually added:
-# set(SOURCES src/source0.cxx src/source1.cxx ...)
+# set(SOURCES src/source0.cpp src/source1.cpp ...)
 # but wildcarding is cleaner:
 file(GLOB SOURCES src/*.cpp)
 # file(GLOB_RECURSE SOURCES src/*.cpp) # recursive, for when we want to organize a bit
-
+# this is almost entirely a header-only package, so we probably will remove the library
 add_library(ceptron ${SOURCES})
 
-add_executable(hello src/hello.cpp) # we need to give it $SOURCES, not the specific source file?
 # add_executable(hello ${SOURCES})
 
 # there must be a more efficient way of organizing these
-add_executable(test_min src/test_min.cpp)
+add_executable(test_min test/test_min.cpp)
 target_link_libraries(test_min ceptron)
 
-add_executable(test_net src/test_net.cpp)
+add_executable(test_net test/test_net.cpp)
 target_link_libraries(test_net ceptron)
 
 # add_definitions(-DBOOST_LOG_DYN_LINK)
