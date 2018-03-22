@@ -16,7 +16,7 @@ using func_t = std::function<double(parvec<N>)>;
 template <size_t N>
 using grad_t = std::function<parvec<N>(parvec<N>)>;
 
-const Eigen::IOFormat my_fmt(2, // first value is the precision
+const Eigen::IOFormat my_fmt(3, // first value is the precision
 			     0, ", ", "\n", "[", "]");
 
 
@@ -53,7 +53,7 @@ void check_gradient(SingleHiddenLayer<N, M, P>& net, const Vec<N>& xin, const Ve
 
 
   parvec<Npar> df;// maybe can do this slickly with colwise() or rowwise() ?
-  for (size_t i_f=0; i_f<N; ++i_f) {
+  for (size_t i_f=0; i_f<Npar; ++i_f) {
     parvec<Npar> dp = Array<Npar>::Zero();
     double dpi = ep*sqrt(1.0 + p(i_f)*p(i_f));
     dp(i_f) = dpi;
@@ -66,6 +66,7 @@ void check_gradient(SingleHiddenLayer<N, M, P>& net, const Vec<N>& xin, const Ve
     net.propagateData(xin, yin);
     double fminusi = net.getCostFuncVal();
     df(i_f) = (fplusi - fminusi)/(2*dpi);
+    // std::cout << dp << std::endl;
   }
 
   // now check this element-by element
@@ -93,8 +94,8 @@ void check_gradient(SingleHiddenLayer<N, M, P>& net, const Vec<N>& xin, const Ve
 
 int main(int argc, char** argv) {
 
-  constexpr size_t Nin = 4;
-  constexpr size_t Nh = 2;
+  constexpr size_t Nin = 6;
+  constexpr size_t Nh = 4;
   constexpr size_t Nout = 1;
   
   SingleHiddenLayer<Nin, Nh, Nout> testNet;
@@ -108,12 +109,14 @@ int main(int argc, char** argv) {
   output << 0.5;//, 0.5;// testing single-dimension for now
   
   testNet.propagateData( input, output );
-  cout << "output of random network is:  " << testNet.getOutput() << endl;
-  cout << "input data is:  " << input.format(my_fmt) << endl;
-  cout << "first layer:\n" << testNet.getFirstSynapses().format(my_fmt) << endl;
-  cout << "second layer:\n" << testNet.getSecondSynapses().format(my_fmt) << endl;
+  cout << "input data is:  " << input.transpose().format(my_fmt) << endl;
+  cout << "input layer cache is:  " << testNet.getInputLayerActivation().transpose().format(my_fmt) << endl;
+  cout << "first weights:\n" << testNet.getFirstSynapses().format(my_fmt) << endl;
+  cout << "hidden activation:\n" << testNet.getHiddenLayerActivation().transpose().format(my_fmt) << endl;
+  cout << "second weights:\n" << testNet.getSecondSynapses().format(my_fmt) << endl;
+  cout << "output of random network is:  " << testNet.getOutput().format(my_fmt) << endl;
   auto& pars = testNet.getNetValue();
-  // cout << "net value of array:\n" << testNet.getNetValue() << endl;
+  // cout << "net value of array:\n" << testNet.getNetValue().format(my_fmt) << endl;
   cout << "array has " << pars.size() << " parameters." << endl;
 
   check_gradient<Nin, Nh, Nout>( testNet, input, output );

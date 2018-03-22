@@ -104,7 +104,8 @@ public:
   const auto& getCostFuncGrad() const {return net_grad_cache_.eval();};
   // there is a type (extra stage) of backprop that would give derivatives w.r.t. *inputs* (not net values).
   // this could be useful for indicating which data elements are most relevant.
-  Array<M> getHiddenLayerActivation() const {return hidden_layer_cache_;};
+  Array<N+1> getInputLayerActivation() const {return input_layer_cache_;};
+  Array<M+1> getHiddenLayerActivation() const {return hidden_layer_cache_;};
   // auto getFirstSynapses() const {return A1_;};
   // using "auto" may not be best when returning a map view -- TODO: look into this more?
   // also TODO: possibly switch back to matrix representation in storage.. it's hard to tell which is more elegant.
@@ -112,7 +113,7 @@ public:
   auto getSecondSynapses() const
   {return Map< const Mat<P, M+1> >(net_.template segment<size_w2_>(size_w1_).data());};
   // Array<size_> getNetValue(); // if we specify directly that it is of size size_, the compiler can not associate with the function definition properly. "auto" just works, apparently.
-  const auto& getNetValue() const {return net_.eval();}  // these functions are the ones that need to be worked out for non-trivial passing of matrix data as an array. TODO: try an example
+  const Array<size_>& getNetValue() const {return net_.eval();}  // these functions are the ones that need to be worked out for non-trivial passing of matrix data as an array. TODO: try an example
   // void setNetValue(const Eigen::Ref<const Array<size_>>& in) {net_ = in;}
   auto& accessNetValue() {return net_;}
   void resetCache();
@@ -183,9 +184,9 @@ void SingleHiddenLayer<N,M,P/*,Reg,Act*/>::propagateData(const Vec<N>& x0, const
 
   // normalize output layer by including an additional category not in the output layer (so P=1 is identical to the basic case)
   // output_layer_cache_ = softmax_ex<Array<P>>(a2.array()).matrix();
-  // output_layer_cache_ = softmax_ex<P>(a2.array()).matrix();
+  output_layer_cache_ = softmax_ex<P>(a2.array()).matrix();
   // output_layer_cache_ = logit<Array<P>>(a2.array()).matrix();
-  output_layer_cache_ = logit<P>(a2.array()).matrix();
+  // output_layer_cache_ = logit<P>(a2.array()).matrix();
   // std::cout << "output layer:" << output_layer_cache_ << std::endl;
   if ( P == 1 ) {
     // Array<P> logit_version = logit<Array<P>>(a2.array());
