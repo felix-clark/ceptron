@@ -1,5 +1,7 @@
 #include <Eigen/Dense>
 
+#include <iostream> // again, temporary for debugging only
+
 namespace { // protect these definitions locally, at least for now until we come up with a better global scheme
   template <size_t M, size_t N>
   using Mat = Eigen::Matrix<double, M, N>;
@@ -13,30 +15,40 @@ namespace { // protect these definitions locally, at least for now until we come
 }
 
 
-template <typename Derived> // should work for scalars and eigen arrays
-// Eigen::ArrayBase<Derived> sigmoid(const Eigen::Ref<const Derived>& in) {// Ref works for "both matrices and blocks", but is it quite what we want here?
-// Eigen::ArrayBase<Derived> sigmoid(const Eigen::ArrayBase<Derived>& in) { // this doesn't work?
+// template <typename Derived> // should work for scalars and eigen arrays
+// Eigen::ArrayBase<Derived> logit(const Eigen::Ref<const Derived>& in) {// Ref works for
+  // "both matrices and blocks", but is it quite what we want here?
+// Eigen::ArrayBase<Derived> logit(const Eigen::ArrayBase<Derived>& in) { // this doesn't work?
+// Eigen::ArrayBase<Derived> logit(const Derived& in) { // i think this should work fine, but does require template argument to function // this is doing something very strange; losing reference to result?
 // see https://eigen.tuxfamily.org/dox/TopicFunctionTakingEigenTypes.html
-Eigen::ArrayBase<Derived> sigmoid(const Derived& in) { // i think this should work fine, but does require template argument to function
+
+
+// i guess we have to keep it basic -- we broke the gradient trying to use the above pattern. check this later, with the Eigen page listed above.
+template<size_t N>
+Array<N> logit(const Array<N>& in) {
   using Eigen::exp;
-  Derived result = 1.0/(1.0 + exp(-in));
+  // std::cout << "input to logit: " << in << std::endl;
+  Array<N> result = 1.0/(1.0 + exp(-in));
+  // std::cout << "output to logit: " << result << std::endl;
   return result;
 }
 
-// double sigmoid(double in) {
+// double logit(double in) {
 //   return 1.0/(1.0 + exp(-in));
 // }
 
 // maps sigma(x) to sigma'(x). note it is not a function of x, but sigma. this utilizes the expression
-template <typename Derived>
-Eigen::ArrayBase<Derived> sigmoid_to_d(const Derived& sig) { // i think this should work fine, but does require template argument to function
+// template <typename Derived>
+template <size_t N>
+// Eigen::ArrayBase<Derived> logit_to_d(const Derived& sig) { // i think this should work fine, but does require template argument to function
+Array<N> logit_to_d(const Array<N>& sig) {
   // sig = 1.0/(1.0 + exp(-in))
-  Derived result = sig*(1.0-sig);
+  Array<N> result = sig*(1.0-sig);
   return result;
 }
 
 // exclusive softmax: it assumes that categories are exclusive and that "none" is a possible category.
-// most direct extension of sigmoid for P > 1 dimensions.
+// most direct extension of logit for P > 1 dimensions.
 // intended for use at output layer only : derivative has convenient cancellation
 // template <typename Derived>
 // Eigen::ArrayBase<Derived> softmax_ex(const Derived& in) { // i think this should work fine, but does require template argument to function
@@ -60,17 +72,17 @@ enum class Regression {Categorical, LeastSquares};
 // "Categorical" is "exclusive categorical", meaning |y| <= 0 and an implied "none" category is used
 // for non-exclusive classification, independent NNs can be used.
 
-enum class InternalActivator {Sigmoid, Tanh};
+enum class InternalActivator {Logit, Tanh};
 
 // we will really want to break this apart (into layers?) and generalize it but first let's get a simple working example.
 // maybe this model should be called a "FeedForward" NN
 // this is a "single hidden layer feedforward network" (SLFN) with 1 output
-// specifically, right now it's an (exclusive) classifier which implies sigmoid/softmax on the output gate.
+// specifically, right now it's an (exclusive) classifier which implies logit/softmax on the output gate.
 // for a y-value of zero, it is taken to mean that the data represents none of the output classes.
 // N is input size, M is hidden layer size, P is output size
 template <size_t N, size_t M, size_t P=1/*,
 	    Regression=Regression::Categorical,
-	    InternalActivator=InternalActivator::Sigmoid*/>
+	    InternalActivator=InternalActivator::Logit*/>
 // should inherit from some more general neural network interface once we get that going, as well as a template interface depending only on the number of input and output layers.
 class SingleHiddenLayer
 {
@@ -156,22 +168,40 @@ void SingleHiddenLayer<N,M,P/*,Reg,Act*/>::propagateData(const Vec<N>& x0, const
 
   // input_layer_cache_(0) = 1.;
   // hidden_layer_cache_(0) = 1.;
-  assert( input_layer_cache_(0) == 1. && hidden_layer_cache_(0) == 1.);
   input_layer_cache_.template segment<N>(1) = x0; // offset bias term
   // at some point we might wish to experiment with column-major (default) vs. row-major data storage order
   // Vec<M> a1 = w1.template leftCols<1>() // bias term
   //   + w1.template rightCols<N>() * input_layer_cache; // matrix mult term
   Vec<M> a1 = w1 * input_layer_cache_; // matrix mult term
   // apply activation function element-wise; need to specify the template type
-  hidden_layer_cache_.template segment<M>(1) = sigmoid< Array<M> >(a1.array()).matrix().eval();  // offset with bias term
+  // hidden_layer_cache_.template segment<M>(1) = logit< Array<M> >(a1.array()).matrix().eval();  // offset with bias term
+  hidden_layer_cache_.template segment<M>(1) = logit< M >(a1.array()).matrix().eval();  // offset with bias term
   // Vec<1> a2 = w2.template leftCols<1>()
   //   + w2.template rightCols<M>() * hidden_layer_cache_;
+  assert( input_layer_cache_(0) == 1. && hidden_layer_cache_(0) == 1.);
   Vec<P> a2 = w2 * hidden_layer_cache_;
-  // output_layer_cache_ = sigmoid(a2(0,0))/*eval*/; // this is sort-of implicit logistic regression; 1D version of softmax 
 
   // normalize output layer by including an additional category not in the output layer (so P=1 is identical to the basic case)
   // output_layer_cache_ = softmax_ex<Array<P>>(a2.array()).matrix();
-  output_layer_cache_ = softmax_ex<P>(a2.array()).matrix();
+  // output_layer_cache_ = softmax_ex<P>(a2.array()).matrix();
+  // output_layer_cache_ = logit<Array<P>>(a2.array()).matrix();
+  output_layer_cache_ = logit<P>(a2.array()).matrix();
+  // std::cout << "output layer:" << output_layer_cache_ << std::endl;
+  if ( P == 1 ) {
+    // Array<P> logit_version = logit<Array<P>>(a2.array());
+    Array<P> logit_version = logit<P>(a2.array());
+    Array<P> sm_version = softmax_ex<P>(a2.array());
+    // if ((logit<Array<P>>(a2.array()) - softmax_ex<P>(a2.array())).square().sum() > 1e-12) { // is this somehow overwriting the value?
+    if ((logit_version - sm_version).square().sum() > 1e-12) {
+      std::cout << "logit and softmax disagree" << std::endl;
+      std::cout << "input: " << std::endl;
+      std::cout << a2 << std::endl;
+      std::cout << "logit: " << std::endl;
+      std::cout << logit_version << std::endl; // why tf is this giving a different value than the one we spit out in the logit function itself
+      std::cout << "softmax: " << std::endl;
+      std::cout << sm_version << std::endl;
+    }
+  }
   output_value_cache_ = y;
 
   // now do backwards propagation
@@ -181,10 +211,10 @@ void SingleHiddenLayer<N,M,P/*,Reg,Act*/>::propagateData(const Vec<N>& x0, const
   // there is usually a 1/N term for the number of data points as well; perhaps should be handled externally
   // or maybe this should be 1/N(output layers), since a 2-output probability net should be the same as a 1-output one
   
-  /// note that this term has exact cancellation with 1st term of backprop w/ sigmoid activation
+  /// note that this term has exact cancellation with 1st term of backprop w/ logit activation
   // , since 1st term is sigma'(a^2) = sigma*(1-sigma)
-  // it probably makes sense to use a sigmoid activation on the final layer (or softmax for multi-dimensional) regardless of internal activation functions
-  // double logistic_term = (output_layer_cache_ - y)/(output_layer_cache_*(1-output_layer_cache_)); // the denominator cancels out of sigmoid/softmax
+  // it probably makes sense to use a logit activation on the final layer (or softmax for multi-dimensional) regardless of internal activation functions
+  // double logistic_term = (output_layer_cache_ - y)/(output_layer_cache_*(1-output_layer_cache_)); // the denominator cancels out of logit/softmax
   // there are cross-terms for softmax if the cost function is the sum of that in all nodes. check this for the multidimensional case! -- yes, the cancellation works just the same.
   // for the multidimensional case, should there be an implied additional case for noise? (i.e. for which y=0 in all bins) it probably won't affect logistic regression, but the cost function is different.
   // this might actually have the same cancelation in least-square...?
@@ -193,7 +223,7 @@ void SingleHiddenLayer<N,M,P/*,Reg,Act*/>::propagateData(const Vec<N>& x0, const
     // derivative of softmax sm(x) is dsm(a_j)/d(a_k) = sm(a_j)*[delta_jk - sm(a_k)]
   // we actually will want a softmax with a non-interacting extra input layer w/ value 0 for normalization (for non-classified, or y=0)
 
-  Vec<P> delta_out = output_layer_cache_ - y;
+  Vec<P> delta_out = output_layer_cache_ - output_value_cache_; // x - y
   // the above is a vector of length (output size) that must be contracted with the LHS of these matrices
   // it turns out we can contract this vector pretty early on
   
@@ -208,7 +238,7 @@ void SingleHiddenLayer<N,M,P/*,Reg,Act*/>::propagateData(const Vec<N>& x0, const
   // Vec<1> o2 = Mat<1, 1>::Identity() * delta_out;
   Vec<P> o2 = delta_out; // this is potentially a redundant copy operation, except for expression templates
   
-  Vec<M> d1 = sigmoid_to_d<Array<M>>(hidden_layer_cache_.template segment<M>(1).array()).matrix(); // ignores bias term explicitly
+  Vec<M> d1 = logit_to_d<M>(hidden_layer_cache_.template segment<M>(1).array()).matrix(); // ignores bias term explicitly
   Vec<M> o1 = d1.asDiagonal() * (w2.template rightCols<M>()).transpose() * o2;
 
   auto grad_w2 = Map< Mat<P, M+1> >(net_grad_cache_.template segment<size_w2_>(size_w1_).data());
@@ -216,6 +246,12 @@ void SingleHiddenLayer<N,M,P/*,Reg,Act*/>::propagateData(const Vec<N>& x0, const
 
   grad_w2 = o2 * hidden_layer_cache_.transpose();
   grad_w1 = o1 * input_layer_cache_.transpose();
+  
+  // // equivalently:
+  // Mat<P, M+1> grad_w2 = o2 * hidden_layer_cache_.transpose();
+  // Mat<M, N+1> grad_w1 = o1 * input_layer_cache_.transpose();
+  // net_grad_cache_.template segment<size_w1_>(0) = Map< Array<size_w1_> >(grad_w1.data());
+  // net_grad_cache_.template segment<size_w2_>(size_w1_) = Map< Array<size_w2_> >(grad_w2.data());
   
 }
 
@@ -231,7 +267,9 @@ double SingleHiddenLayer<N,M,P/*,Regression::Categorical,Act*/>::getCostFuncVal(
   // , but the multi-D case might need a term that accounts for a non-classified value.
   // maybe we add this in by hand? i.e. another y component equal to 1-sum(y_i) ?
   return  - (output_value_cache_.array()*log(output_layer_cache_.array())).sum()
+    // - (1.0-output_value_cache_.array()*log1p(-output_layer_cache_.array())).sum(); // just checking to see if we can recover gradient checking
     // we need a guard for when sum of output layers = 1
-    - (1-output_value_cache_.array().sum())*log1p(-output_layer_cache_.array().sum()); // 1-dimensional case
+    - (1-output_value_cache_.array().sum())*log1p(-output_layer_cache_.array().sum());
+  // 1-dimensional case
 }
 
