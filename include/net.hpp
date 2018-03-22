@@ -16,8 +16,6 @@ namespace { // protect these definitions locally, at least for now until we come
 }
 
 
-
-
 // move this code to a class determining regression type
 // exclusive softmax: it assumes that categories are exclusive and that "none" is a possible category.
 // most direct extension of logit for P > 1 dimensions.
@@ -39,10 +37,27 @@ Array<N> softmax_ex(const Array<N>& in) { // i think this should work fine, but 
   return expvals / (1.0 + expvals.sum()); // traditionally, softmax does not have this extra 1 term
 }
 
-
 enum class Regression {Categorical, LeastSquares};
 // "Categorical" is "exclusive categorical", meaning |y| <= 0 and an implied "none" category is used
 // for non-exclusive classification, independent NNs can be used.
+
+
+// an interface class for NNs that takes only number of inputs and number of outputs.
+// we could probably use a better name for  this
+template <size_t Nin, size_t Nout, size_t Ntot>
+class IFeedForward
+{
+public:
+  constexpr static size_t size() {return Ntot;} // needs to be declared explicitly static to work. we may need to just make size_ public
+  virtual const Vec<Nout>& getOutput() const = 0; // returns cache
+  virtual void propagateData(const Vec<Nin>& x0, const Vec<Nout>& y) = 0;
+  virtual double getCostFuncVal() const = 0;
+  virtual const Array<Ntot>& getCostFuncGrad() const = 0;
+  // Array<N+1> getInputLayerActivation() const = 0; // do we actually need this in the interface?
+  virtual const Array<Ntot>& getNetValue() const = 0;
+  virtual Array<Ntot>& accessNetValue() = 0; // allows use of in-place operations
+
+};
 
 // we will really want to break this apart (into layers?) and generalize it but first let's get a simple working example.
 // maybe this model should be called a "FeedForward" NN
@@ -54,7 +69,8 @@ template <size_t N, size_t M, size_t P=1/*,
 					  Regression Reg=Regression::Categorical*/,
 	    InternalActivator Act=InternalActivator::Tanh>
 // should inherit from some more general neural network interface once we get that going, as well as a template interface depending only on the number of input and output layers.
-class SingleHiddenLayer : protected ActivFunc<Act>
+class SingleHiddenLayer : public virtual IFeedForward<N, P, M*(N+1)+P*(M+1)>, // we have a shortcut for this below; it's not ideal to manually compute the size twice
+			  protected ActivFunc<Act>
 {
 private:
   static constexpr size_t size_w1_ = M*(N+1); // first layer
@@ -63,15 +79,16 @@ private:
 public:
   // SingleHiddenLayer() {};
   // ~SingleHiddenLayer() {};
-  constexpr static size_t size() {return size_;} // needs to be declared explicitly static to work
+  // constexpr static size_t size() {return size_;} // needs to be declared explicitly static to work. now in base class
   void randomInit() {net_.setRandom();};
-  const Vec<P>& getOutput() const {return  output_layer_cache_.eval();}; // returns cache
+  const Vec<P>& getOutput() const override {return  output_layer_cache_.eval();}; // returns cache
   // maybe we should have a function like setInput() and otherwise don't allow new input arrays, so it's clear what changes the cache
   // double doPropForward(const Vec<N>&); // should maybe take an array instead of a vector? idk
   // Array<size_> doPropBackward(double); // our output right now has only 1 value // or return gradient?
-  void propagateData(const Vec<N>& x0, const Vec<P>& y);
-  double getCostFuncVal() const;
-  const auto& getCostFuncGrad() const {return net_grad_cache_.eval();};
+  void propagateData(const Vec<N>& x0, const Vec<P>& y) override;
+  double getCostFuncVal() const override;
+  // const auto& getCostFuncGrad() const {return net_grad_cache_.eval();};
+  const Array<size_>& getCostFuncGrad() const override {return net_grad_cache_.eval();};
   // there is a type (extra stage) of backprop that would give derivatives w.r.t. *inputs* (not net values).
   // this could be useful for indicating which data elements are most relevant.
   Array<N+1> getInputLayerActivation() const {return input_layer_cache_;};
@@ -82,7 +99,8 @@ public:
   {return Map< const Mat<P, M+1> >(net_.template segment<size_w2_>(size_w1_).data());};
   const Array<size_>& getNetValue() const {return net_.eval();}  // these functions are the ones that need to be worked out for non-trivial passing of matrix data as an array. TODO: try an example
   // void setNetValue(const Eigen::Ref<const Array<size_>>& in) {net_ = in;}
-  auto& accessNetValue() {return net_;} // allows use of in-place operations
+  // auto& accessNetValue() {return net_;} // allows use of in-place operations
+  Array<size_>& accessNetValue() {return net_;} // allows use of in-place operations
   void resetCache();
   void setL2RegParam(double lambda); // set a parameter to add a regularization term lambda*sum(net values squared). TODO: implement this
 private:

@@ -27,11 +27,11 @@ const Eigen::IOFormat my_fmt(3, // first value is the precision
 // we will really want to check element-by-element
 // template <size_t N>
 // void check_gradient(func_t<N> f, grad_t<N> g, const parvec<N>& p, double ep=1e-6, double tol=1e-2) {
-template <size_t N, size_t M, size_t P, InternalActivator Act>
-void check_gradient(SingleHiddenLayer<N, M, P, Act>& net, const Vec<N>& xin, const Vec<P>& yin, double ep=1e-4, double tol=1e-4) {
+// template <size_t N, size_t M, size_t P, InternalActivator Act>
+template <size_t Nin, size_t Nout, size_t Ntot>
+void check_gradient(IFeedForward<Nin, Nout, Ntot>& net, const Vec<Nin>& xin, const Vec<Nout>& yin, double ep=1e-4, double tol=1e-4) {
   // assume that a data point has already been put in
-  constexpr size_t Npar = net.size();
-  assert( Npar == M*(N+1) + P*(M+1) );
+  constexpr size_t Npar = Ntot;
   const parvec<Npar> p = net.getNetValue(); // don't make this a reference: the internal data will change!
 
   net.propagateData(xin, yin); // this must be done before 
@@ -121,17 +121,17 @@ int main(int argc, char** argv) {
   // cout << "net value of array:\n" << testNet.getNetValue().format(my_fmt) << endl;
   cout << "array has " << pars.size() << " parameters." << endl;
 
-  check_gradient<Nin, Nh, Nout, Act>( testNet, input, output );
+  check_gradient<Nin, Nout, netsize>( testNet, input, output );
 
   testNet.randomInit();
   input.setRandom();
   output << 0.02, 0.2;
-  check_gradient<Nin, Nh, Nout, Act>( testNet, input, output );
+  check_gradient<Nin, Nout, netsize>( testNet, input, output );
 
   testNet.randomInit();
   input.setRandom(); // should also check pathological x values
   output << 0.99, 10.0; // yval > 1 should actually do something weird
-  check_gradient<Nin, Nh, Nout, Act>( testNet, input, output );
+  check_gradient<Nin, Nout, netsize>( testNet, input, output );
   
   return 0;
 }
