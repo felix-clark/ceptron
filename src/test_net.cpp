@@ -27,8 +27,8 @@ const Eigen::IOFormat my_fmt(3, // first value is the precision
 // we will really want to check element-by-element
 // template <size_t N>
 // void check_gradient(func_t<N> f, grad_t<N> g, const parvec<N>& p, double ep=1e-6, double tol=1e-2) {
-template <size_t N, size_t M, size_t P>
-void check_gradient(SingleHiddenLayer<N, M, P>& net, const Vec<N>& xin, const Vec<P>& yin, double ep=1e-4, double tol=1e-4) {
+template <size_t N, size_t M, size_t P, InternalActivator Act>
+void check_gradient(SingleHiddenLayer<N, M, P, Act>& net, const Vec<N>& xin, const Vec<P>& yin, double ep=1e-4, double tol=1e-4) {
   // assume that a data point has already been put in
   constexpr size_t Npar = net.size();
   assert( Npar == M*(N+1) + P*(M+1) );
@@ -70,10 +70,11 @@ void check_gradient(SingleHiddenLayer<N, M, P>& net, const Vec<N>& xin, const Ve
   }
 
   // now check this element-by element
-  if ( (df-evalgrad).square().sum() > tol*tol*1
+  double sqSumDiff = (df-evalgrad).square().sum();
+  if ( sqSumDiff > tol*tol*1
        || !df.isFinite().all()
        || !evalgrad.isFinite().all()) {
-    cout << "gradient check failed!" << endl;
+    cout << "gradient check failed at tolerance level " << tol << " (" << sqrt(sqSumDiff) << ")" << endl;
     cout << "f(p) = " << fval << endl;
     cout << "numerical derivative = " << df.transpose().format(my_fmt) << endl;
     cout << "analytic gradient = " << evalgrad.transpose().format(my_fmt) << endl;
@@ -96,9 +97,10 @@ int main(int argc, char** argv) {
 
   constexpr size_t Nin = 6;
   constexpr size_t Nh = 4;
-  constexpr size_t Nout = 1;
+  constexpr size_t Nout = 2;
+  constexpr InternalActivator Act=InternalActivator::Tanh;
   
-  SingleHiddenLayer<Nin, Nh, Nout> testNet;
+  SingleHiddenLayer<Nin, Nh, Nout, Act> testNet;
   constexpr size_t netsize = testNet.size();
   testNet.randomInit();
 
@@ -106,7 +108,7 @@ int main(int argc, char** argv) {
   input.setRandom();
 
   Vec<Nout> output;
-  output << 0.5;//, 0.5;// testing single-dimension for now
+  output << 0.5, 0.5;
   
   testNet.propagateData( input, output );
   cout << "input data is:  " << input.transpose().format(my_fmt) << endl;
@@ -114,22 +116,22 @@ int main(int argc, char** argv) {
   cout << "first weights:\n" << testNet.getFirstSynapses().format(my_fmt) << endl;
   cout << "hidden activation:\n" << testNet.getHiddenLayerActivation().transpose().format(my_fmt) << endl;
   cout << "second weights:\n" << testNet.getSecondSynapses().format(my_fmt) << endl;
-  cout << "output of random network is:  " << testNet.getOutput().format(my_fmt) << endl;
+  cout << "output of random network is:  " << testNet.getOutput().transpose().format(my_fmt) << endl;
   auto& pars = testNet.getNetValue();
   // cout << "net value of array:\n" << testNet.getNetValue().format(my_fmt) << endl;
   cout << "array has " << pars.size() << " parameters." << endl;
 
-  check_gradient<Nin, Nh, Nout>( testNet, input, output );
+  check_gradient<Nin, Nh, Nout, Act>( testNet, input, output );
 
   testNet.randomInit();
   input.setRandom();
-  output << 0.02;//, 0.2;
-  check_gradient<Nin, Nh, Nout>( testNet, input, output );
+  output << 0.02, 0.2;
+  check_gradient<Nin, Nh, Nout, Act>( testNet, input, output );
 
   testNet.randomInit();
-  input.setRandom();
-  output << 0.99;//, 10.0; // this should actually do something weird
-  check_gradient<Nin, Nh, Nout>( testNet, input, output );
+  input.setRandom(); // should also check pathological x values
+  output << 0.99, 10.0; // yval > 1 should actually do something weird
+  check_gradient<Nin, Nh, Nout, Act>( testNet, input, output );
   
   return 0;
 }
