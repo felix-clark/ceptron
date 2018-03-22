@@ -23,19 +23,20 @@ using grad_t = std::function<parvec<N>(parvec<N>)>;
 // we will really want to check element-by-element
 // template <size_t N>
 // void check_gradient(func_t<N> f, grad_t<N> g, const parvec<N>& p, double ep=1e-6, double tol=1e-2) {
-void check_gradient(SingleHiddenLayer<8, 4>& net, const Vec<8>& xin, const double yin, double ep=1e-4, double tol=1e-4) {
+template <size_t N, size_t M, size_t P>
+void check_gradient(SingleHiddenLayer<N, M, P>& net, const Vec<N>& xin, const Vec<P>& yin, double ep=1e-4, double tol=1e-4) {
   // assume that a data point has already been put in
-  constexpr size_t N = net.size();
-  parvec<N> p = net.getNetValue(); // don't make this a reference: the internal data will change!
+  constexpr size_t Ntot = net.size();
+  parvec<Ntot> p = net.getNetValue(); // don't make this a reference: the internal data will change!
 
   net.propagateData(xin, yin); // this must be done before 
   double fval = net.getCostFuncVal(); // don't think we actually need this, but it might be a nice check
 
-  parvec<N> evalgrad = net.getCostFuncGrad();
+  parvec<Ntot> evalgrad = net.getCostFuncGrad();
   double gradmag = sqrt(evalgrad.square().sum());
-  parvec<N> dir = (1.0+p.square()).sqrt()*evalgrad/gradmag; // vector along direction of greatest change
+  parvec<Ntot> dir = (1.0+p.square()).sqrt()*evalgrad/gradmag; // vector along direction of greatest change
   double dirmag = sqrt(dir.square().sum());
-  parvec<N> dpar = ep*dir;
+  parvec<Ntot> dpar = ep*dir;
 
   net.accessNetValue() += dpar;
   net.propagateData(xin, yin);
@@ -46,13 +47,13 @@ void check_gradient(SingleHiddenLayer<8, 4>& net, const Vec<8>& xin, const doubl
   double fminus = net.getCostFuncVal();
 
 
-  parvec<N> df;// maybe can do this slickly with colwise() or rowwise() ?
+  parvec<Ntot> df;// maybe can do this slickly with colwise() or rowwise() ?
   for (size_t i_f=0; i_f<N; ++i_f) {
-    parvec<N> dp = Array<N>::Zero();
+    parvec<Ntot> dp = Array<Ntot>::Zero();
     double dpi = ep*sqrt(1.0 + p(i_f)*p(i_f));
     dp(i_f) = dpi;
-    parvec<N> pplus = p + dp;
-    parvec<N> pminus = p - dp;
+    parvec<Ntot> pplus = p + dp;
+    parvec<Ntot> pminus = p - dp;
     net.accessNetValue() = pplus;
     net.propagateData(xin, yin);
     double fplusi = net.getCostFuncVal();
@@ -87,21 +88,24 @@ void check_gradient(SingleHiddenLayer<8, 4>& net, const Vec<8>& xin, const doubl
 
 int main(int argc, char** argv) {
 
-  SingleHiddenLayer<8, 4/*, 2*/> testNet;
+  constexpr size_t Nin = 8;
+  constexpr size_t Nh = 4;
+  constexpr size_t Nout = 1;
+  
+  SingleHiddenLayer<Nin, Nh, Nout> testNet;
   constexpr size_t netsize = testNet.size();
   testNet.randomInit();
 
-  Vec<8> input;
+  Vec<Nin> input;
   input.setRandom();
 
-  Vec<2> output;
-  output << 0, 1;
-  double yval = 0.5;// testing single-dimension for now
+  Vec<Nout> output;
+  output << 0.5;//, 0.5;// testing single-dimension for now
   
   Eigen::IOFormat my_fmt(2, // first value is the precision
 			 0, ", ", "\n", "[", "]");
 
-  testNet.propagateData( input, yval/*output*/ );
+  testNet.propagateData( input, output );
   cout << "output of random network is:  " << testNet.getOutput() << endl;
   cout << "first layer:\n" << testNet.getFirstSynapses().format(my_fmt) << endl;
   cout << "second layer:\n" << testNet.getSecondSynapses().format(my_fmt) << endl;
@@ -109,15 +113,15 @@ int main(int argc, char** argv) {
   // cout << "net value of array:\n" << testNet.getNetValue() << endl;
   cout << "array has " << pars.size() << " parameters." << endl;
 
-  check_gradient( testNet, input, yval/*output*/ );
+  check_gradient<Nin, Nh, Nout>( testNet, input, output );
 
   input.setRandom();
-  yval = 0.02;
-  check_gradient( testNet, input, yval );
+  output << 0.02;//, 0.2;
+  check_gradient<Nin, Nh, Nout>( testNet, input, output );
 
   input.setRandom();
-  yval = 0.99;
-  check_gradient( testNet, input, yval );
+  output << 0.99;//, 10.0; // this should actually do something weird
+  check_gradient<Nin, Nh, Nout>( testNet, input, output );
   
   return 0;
 }
