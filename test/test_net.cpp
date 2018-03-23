@@ -20,26 +20,12 @@ const Eigen::IOFormat my_fmt(3, // first value is the precision
 
 // borrow this function from other testing utility to check the neural net's derivative
 // we will really want to check element-by-element
-template <size_t Nin, size_t Nout, size_t Ntot>
-void check_gradient(ISmallFeedForward<Nin, Nout, Ntot>& net, const BatchVec<Nin>& xin, const BatchVec<Nout>& yin, double ep=1e-4, double tol=1e-4) {
-  constexpr size_t Npar = Ntot;
+template <size_t Nin, size_t Nout, size_t Npar>
+void check_gradient(ISmallFeedForward<Nin, Nout, Npar>& net, const BatchVec<Nin>& xin, const BatchVec<Nout>& yin, double ep=1e-4, double tol=1e-4) {
   const Array<Npar> p = net.getNetValue(); // don't make this a reference: the internal data will change!
-
-  func_grad_vals<Ntot> fgvals = net.costFuncAndGrad(xin, yin); // this must be done before 
+  func_grad_vals<Npar> fgvals = net.costFuncAndGrad(xin, yin); // this must be done before 
   double fval = fgvals.f; // don't think we actually need this, but it might be a nice check
-
   Array<Npar> evalgrad = fgvals.g;
-  double gradmag = sqrt(evalgrad.square().sum());
-  Array<Npar> dir = (1.0+p.square()).sqrt()*evalgrad/gradmag; // vector along direction of greatest change
-  double dirmag = sqrt(dir.square().sum());
-  Array<Npar> dpar = ep*dir;
-
-  net.accessNetValue() += dpar;
-  double fplus = net.costFunc(xin, yin);
-
-  net.accessNetValue() = p-dpar;
-  double fminus = net.costFunc(xin, yin);
-
 
   Array<Npar> df;// maybe can do this slickly with colwise() or rowwise() ?
   for (size_t i_f=0; i_f<Npar; ++i_f) {
@@ -54,7 +40,7 @@ void check_gradient(ISmallFeedForward<Nin, Nout, Ntot>& net, const BatchVec<Nin>
     double fminusi = net.costFunc(xin, yin);
     df(i_f) = (fplusi - fminusi)/(2*dpi);
   }
-
+  
   // now check this element-by element
   double sqSumDiff = (df-evalgrad).square().sum();
   if ( sqSumDiff > tol*tol*1
@@ -67,16 +53,6 @@ void check_gradient(ISmallFeedForward<Nin, Nout, Ntot>& net, const BatchVec<Nin>
     BOOST_LOG_TRIVIAL(warning) << "difference = " << (df - evalgrad).transpose().format(my_fmt);
   }
   
-  // we should actually check the numerical derivative element-by-element
-  // double deltaf = (f(p+ep*dir) - f(p-ep*dir))/(2*ep*dirmag); // should be close to |gradf|
-  double deltaf = (fplus - fminus)/(2*ep*dirmag);
-  if ( fabs(deltaf) - (dir*evalgrad).sum()/dirmag > tol*fabs(deltaf + (dir*evalgrad).sum()/dirmag) ) {
-    BOOST_LOG_TRIVIAL(info) << "gradient magnitude check failed!";
-    BOOST_LOG_TRIVIAL(info) << "f(p) = " << fval;
-    BOOST_LOG_TRIVIAL(info) << "numerical derivative along grad = " << deltaf;
-    BOOST_LOG_TRIVIAL(info) << "analytic gradient magnitude = " << (dir*evalgrad).sum()/dirmag;
-    BOOST_LOG_TRIVIAL(info) << "difference = " << fabs(deltaf) - (dir*evalgrad).sum()/dirmag;
-  }
 }
 
 int main(int, char**) {

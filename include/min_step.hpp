@@ -148,7 +148,7 @@ void AdaDelta<N>::resetCache()
 }
 
 template <size_t N>
-Array<N> AdaDelta<N>::getDeltaPar( func_t<N> f, grad_t<N> g, Array<N> pars )
+Array<N> AdaDelta<N>::getDeltaPar( func_t<N> /*f*/, grad_t<N> g, Array<N> pars )
 {
   Array<N> grad = g(pars); // an improvement might be to use an accelerated version
   // element-wise learn rate

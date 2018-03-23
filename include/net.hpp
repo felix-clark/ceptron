@@ -136,46 +136,23 @@ SingleHiddenLayer<N,M,P,Reg,Act>::costFuncAndGrad(const BatchVec<N>& x0, const B
   Mat<M, N+1> w1 = getFirstSynapses(); // don't think there is copying here for a Map object... but we should verify how it actually works.
   Mat<P, M+1> w2 = getSecondSynapses(); // const references shouldn't be necessary for the expression templates to work
 
-  // input_layer_cache_.template segment<N>(1) = x0; // offset bias term
   // at some point we might wish to experiment with column-major (default) vs. row-major data storage order
-  // Vec<M> a1 = w1 * input_layer_cache_; // matrix mult term
-  // BatchVec<M> b1 = w1.template leftCols<1>() * BatchVec<1>::Ones(1,batchSize);
   BatchVec<M> a1 = w1.template leftCols<1>() * BatchVec<1>::Ones(1,batchSize) // bias terms
     + w1.template rightCols<N>() * x0; // weights term
   // apply activation function element-wise; need to specify the template type
   BatchVec<M> x1 = ActivFunc<Act>::template activ< BatchArray<M> >(a1.array()).matrix();
   
-  // hidden_layer_cache_.template segment<M>(1) =
-  //   ActivFunc<Act>::template activ< Array<M> >(a1.array()).matrix().eval();
-  
-  // assert( input_layer_cache_(0) == 1. && hidden_layer_cache_(0) == 1.);
-  
-// Vec<P> a2 = w2 * hidden_layer_cache_;
   BatchVec<P> a2 = w2.template leftCols<1>() * BatchVec<1>::Ones(1, batchSize)
     + w2.template rightCols<M>() * x1;
-
   assert( a2.cols() == batchSize );
   
   BatchVec<P> x2 = Regressor<Reg>::template outputGate< BatchArray<P> >(a2.array()).matrix();
-  // output_layer_cache_ = Regressor<Reg>::template outputGate< Array<P> >(a2.array()).matrix();
-  // output_value_cache_ = y;
   assert( x2.cols() == batchSize );
 
   // we might return f and gradient together... or maybe we just cache them
   double costFuncVal = Regressor<Reg>::template costFuncVal< BatchArray<P> >(x2.array(), y.array());
 
-  // if (skip_backprop) return {costFuncVal, zeros}; // maybe we'd want to skip backprop sometimes for some reason -- might use different function for that
-  
   // now do backwards propagation
-  // the dependence of the cost function on the data y depends on the type of regression, though it is quite similar for logistic and linear.
-  // we will assume logistic for now, but it should require minor changes to generalize.
-
-  // there is usually a 1/N term for the number of data points as well; perhaps should be handled externally
-  // or maybe this should be 1/N(output layers), since a 2-output probability net should be the same as a 1-output one
-  
-  // the other term in the product is dx^out/d(p), which has a layer-dependent form
-    // derivative of softmax sm(x) is dsm(a_j)/d(a_k) = sm(a_j)*[delta_jk - sm(a_k)]
-  // we actually will want a softmax with a non-interacting extra input layer w/ value 0 for normalization (for non-classified, or y=0)
 
   // with layer L being the output layer:
   // dx_j^(L)/dw_mn^(L) = sigma'[a_j^(L)] * delta_jm * x_n^(L-1)
@@ -188,17 +165,12 @@ SingleHiddenLayer<N,M,P,Reg,Act>::costFuncAndGrad(const BatchVec<N>& x0, const B
   // error term for output layer
   BatchVec<P> d2 = x2 - y;
   
-  // bias term is no longer kept in hidden layer cache, so no need to segment:
-  // BatchVec<M> e1 = ActivFunc<Act>::template activToD< Array<M> >(x1.template segment<M>(1).array()).matrix();
-  BatchVec<M> e1 = ActivFunc<Act>::template activToD< Array<M> >(x1.array()).matrix();
-  // this "as diagonal" approach will no longer work w/ batches
-  // BatchVec<M> d1 = e1.asDiagonal() * (w2.template rightCols<M>()).transpose() * d2;
+  BatchVec<M> e1 = ActivFunc<Act>::template activToD< BatchArray<M> >(x1.array()).matrix();
   BatchVec<M> d1 = e1.cwiseProduct( (w2.template rightCols<M>()).transpose() * d2 );
 
   Array<size_> costFuncGrad;
   // Vec<M> gb1 = d1.rowwise().sum();
   Mat<M,N> gw1 = d1 * x0.transpose(); // this operation contracts along the axis of different batch data points
-  // Eigen::Matrix<double, M,N, Eigen::RowMajor> gw1 = d1 * x0.transpose(); // this should fail gradient checks (and it does)
   // Vec<P> gb2 = d2.rowwise().sum();
   Mat<P,M> gw2 = d2 * x1.transpose();
   // it would be nice to make this procedure more readable:
@@ -206,12 +178,11 @@ SingleHiddenLayer<N,M,P,Reg,Act>::costFuncAndGrad(const BatchVec<N>& x0, const B
     , Map< Vec<M*N> >(gw1.data()) // is this really safe?
     , d2.rowwise().sum() //gb2
     , Map< Vec<P*M> >(gw2.data());
-  		   
+
   // normalize by batch size
   costFuncVal /= batchSize;
   costFuncGrad /= batchSize;
-  return {costFuncVal, costFuncGrad};
-  
+  return {costFuncVal, costFuncGrad};  
 }
 
 // we need to be careful w/ this function because it's similar to the version w/ gradient, but stops sooner.
