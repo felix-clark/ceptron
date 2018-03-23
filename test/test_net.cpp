@@ -21,7 +21,7 @@ const Eigen::IOFormat my_fmt(3, // first value is the precision
 // borrow this function from other testing utility to check the neural net's derivative
 // we will really want to check element-by-element
 template <size_t Nin, size_t Nout, size_t Ntot>
-void check_gradient(ISmallFeedForward<Nin, Nout, Ntot>& net, const Vec<Nin>& xin, const Vec<Nout>& yin, double ep=1e-4, double tol=1e-4) {
+void check_gradient(ISmallFeedForward<Nin, Nout, Ntot>& net, const BatchVec<Nin>& xin, const BatchVec<Nout>& yin, double ep=1e-4, double tol=1e-4) {
   constexpr size_t Npar = Ntot;
   const Array<Npar> p = net.getNetValue(); // don't make this a reference: the internal data will change!
 
@@ -79,7 +79,7 @@ void check_gradient(ISmallFeedForward<Nin, Nout, Ntot>& net, const Vec<Nin>& xin
   }
 }
 
-int main(int argc, char** argv) {
+int main(int, char**) {
 
   constexpr size_t Nin = 8;
   constexpr size_t Nh = 4;
@@ -91,7 +91,7 @@ int main(int argc, char** argv) {
   // however the nested select() to attempt to check for x=0 screws up the gradient completely
   // constexpr InternalActivator Act=InternalActivator::LReLU;
   constexpr InternalActivator Act=InternalActivator::Softplus;
-  constexpr int batchSize = 1;
+  constexpr int batchSize = 16;
 
   // we can adjust the log level like so: (e.g. turn on debug)
   namespace logging = boost::log;
@@ -106,7 +106,9 @@ int main(int argc, char** argv) {
   input.setRandom();
 
   BatchVec<Nout> output(Nout, batchSize);
-  output << 0.5, 0.25, 0.1, 0.01;
+  // with a large-ish batch there are too many numbers to plug in manually
+  // output << 0.5, 0.25, 0.1, 0.01;
+  output.setRandom();
   
   // we need to change the interface here to spit out intermediate-layer activations
   // testNet.propagateData( input, output );
@@ -124,7 +126,8 @@ int main(int argc, char** argv) {
 
   testNet.randomInit();
   input.setRandom();
-  output << 1e-6, 0.02, 0.2, 0.01;
+  // output << 1e-6, 0.02, 0.2, 0.01;
+  output.setRandom();
   check_gradient<Nin, Nout, netsize>( testNet, input, output );
 
   testNet.randomInit();

@@ -108,7 +108,7 @@ void run_test_functions( IMinStep<N>& minstep, Array<N> initpars ) {
   print_result( rosen_result );
 }
 
-int main( int argc, char** argv ) {
+int main( int, char** ) {
 
   // constexpr size_t ndim = 4;
   constexpr size_t ndim = 2;

@@ -41,17 +41,17 @@ file(GLOB SOURCES src/*.cpp)
 # set compiler options
 # checking for g++ can be done w/ something like if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX) ... endif()
 # this hasn't been working... -Wall is an "unrecognized command-line option"??
-# set(MY_DEBUG_OPTIONS "-g -O0 -Wall -Wextra -pedantic")
-# set(MY_RELEASE_OPTIONS "-O3 -Wall -Wextra -pedantic")
+set(MY_DEBUG_OPTIONS -g -O0 -Wall -Wextra -pedantic)
+set(MY_RELEASE_OPTIONS -O3 -Wall -Wextra -pedantic)
 
 
 # define our library (which is currently mostly in headers, but implementations of larger nets will not be so templated)
 add_library(ceptron ${SOURCES})
 # it appears that if we list the Eigen target here, we don't have to manually include the headers
 target_link_libraries(ceptron Eigen3::Eigen ${Boost_LOG_LIBRARY} ${CMAKE_THREAD_LIBS_INIT})
-# PUBLIC should propagate this down to dependencies ?
-# target_compile_options(ceptron PUBLIC "$<$<CONFIG:DEBUG>:${MY_DEBUG_OPTIONS}>")
-# target_compile_options(ceptron PUBLIC "$<$<CONFIG:RELEASE>:${MY_RELEASE_OPTIONS}>")
+# PUBLIC should propagate these flags down to dependencies
+target_compile_options(ceptron PUBLIC "$<$<CONFIG:DEBUG>:${MY_DEBUG_OPTIONS}>")
+target_compile_options(ceptron PUBLIC "$<$<CONFIG:RELEASE>:${MY_RELEASE_OPTIONS}>")
 
 
 
@@ -62,8 +62,6 @@ foreach(_TESTSRC ${TESTSRCS})
   string( REPLACE "${CMAKE_SOURCE_DIR}/test/" "" _TESTOUT ${_TESTSRCNOEXT} )
   message( STATUS ${_TESTOUT} )
   add_executable(${_TESTOUT} ${_TESTSRC})
-  # target_compile_options(${_TESTOUT} PRIVATE "$<$<CONFIG:DEBUG>:${MY_DEBUG_OPTIONS}>")
-  # target_compile_options(${_TESTOUT} PUBLIC "$<$<CONFIG:RELEASE>:${MY_RELEASE_OPTIONS}>")
   target_link_libraries(${_TESTOUT} ceptron)
 endforeach()
 

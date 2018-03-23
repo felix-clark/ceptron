@@ -236,7 +236,7 @@ double SingleHiddenLayer<N,M,P,Reg,Act>::costFunc(const BatchVec<N>& x0, const B
 
   // we might return f and gradient together... or maybe we just cache them
   double costFuncVal = Regressor<Reg>::template costFuncVal< BatchArray<P> >(x2.array(), y.array());
-  costFuncVal / batchSize;
+  costFuncVal /= batchSize;
   return costFuncVal;
 }
 
