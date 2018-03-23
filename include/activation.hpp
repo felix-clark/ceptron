@@ -30,8 +30,8 @@ class ActivFunc
 public:
 // there should possibly be some additional voodoo to ensure that ArrT is an Eigen::ArrayBase
 // note that that seemed to bite us when we tried
-  template <typename ArrT> ArrT activ(const ArrT& in);
-  template <typename ArrT> ArrT activToD(const ArrT& act); // sig -> sig', not x -> sig'
+  template <typename ArrT> ArrT activ(const ArrT& in) const;
+  template <typename ArrT> ArrT activToD(const ArrT& act) const; // sig -> sig', not x -> sig'
   // another function like dactive_from_in would compute the derivative directly from the input,
   //  which might be necessary for the less nice activation choices
   // we could consider returning both the activated layer and it's derivative simultaneously
@@ -44,7 +44,7 @@ template <>
 template <typename ArrT>
 // might need to take an Eigen::Ref since we're passing it in segments?
 /// something like ArrT -> Eigen::ArrayBase<ArrT> ? but that did lead to some very strange results at one point so maybe not
-ArrT ActivFunc<InternalActivator::Logit>::activ(const ArrT& in) {
+ArrT ActivFunc<InternalActivator::Logit>::activ(const ArrT& in) const {
   // // something like the following assertion would be good to restrict to Array types, but I'm not getting it to work atm
   // static_assert( std::is_base_of<Eigen::ArrayBase, ArrT>::value,
   // 		 "activation function must take an Eigen::Array type" );
@@ -53,7 +53,7 @@ ArrT ActivFunc<InternalActivator::Logit>::activ(const ArrT& in) {
 
 template <>
 template <typename ArrT>
-ArrT ActivFunc<InternalActivator::Logit>::activToD(const ArrT& act) {
+ArrT ActivFunc<InternalActivator::Logit>::activToD(const ArrT& act) const {
   return act*(1.0-act);
 }
 
@@ -61,13 +61,13 @@ ArrT ActivFunc<InternalActivator::Logit>::activToD(const ArrT& act) {
 
 template <>
 template <typename ArrT>
-ArrT ActivFunc<InternalActivator::Tanh>::activ(const ArrT& in) {
+ArrT ActivFunc<InternalActivator::Tanh>::activ(const ArrT& in) const {
   return tanh(in);  
 }
 
 template <>
 template <typename ArrT>
-ArrT ActivFunc<InternalActivator::Tanh>::activToD(const ArrT& act) {
+ArrT ActivFunc<InternalActivator::Tanh>::activToD(const ArrT& act) const {
   return 1.0-act.square();
 }
 
@@ -75,13 +75,13 @@ ArrT ActivFunc<InternalActivator::Tanh>::activToD(const ArrT& act) {
 // a popular choice but nodes often die out (this may actually help convergence)
 template <>
 template <typename ArrT>
-ArrT ActivFunc<InternalActivator::ReLU>::activ(const ArrT& in) {
+ArrT ActivFunc<InternalActivator::ReLU>::activ(const ArrT& in) const {
   return (in >= 0).select(in, ArrT::Zero());
 }
 
 template <>
 template <typename ArrT>
-ArrT ActivFunc<InternalActivator::ReLU>::activToD(const ArrT& act) {
+ArrT ActivFunc<InternalActivator::ReLU>::activToD(const ArrT& act) const {
   // maybe return 0.5 at zero exactly to give nets that are zero-initialized some gradient
   // somehow nested selects is screwing up the result??
   // return (act > 0).select(ArrT::Ones(),
@@ -99,13 +99,13 @@ ArrT ActivFunc<InternalActivator::ReLU>::activToD(const ArrT& act) {
 
 template <>
 template <typename ArrT>
-ArrT ActivFunc<InternalActivator::Softplus>::activ(const ArrT& in) {
+ArrT ActivFunc<InternalActivator::Softplus>::activ(const ArrT& in) const {
   return log(1.0 + exp(in));
 }
 
 template <>
 template <typename ArrT>
-ArrT ActivFunc<InternalActivator::Softplus>::activToD(const ArrT& act) {
+ArrT ActivFunc<InternalActivator::Softplus>::activToD(const ArrT& act) const {
   return 1.0 - exp(-act);
 }
 
@@ -115,18 +115,19 @@ ArrT ActivFunc<InternalActivator::Softplus>::activToD(const ArrT& act) {
 
 template <>
 template <typename ArrT>
-ArrT ActivFunc<InternalActivator::LReLU>::activ(const ArrT& in) {
+ArrT ActivFunc<InternalActivator::LReLU>::activ(const ArrT& in) const {
   constexpr double alpha = 1.0/128.0;
   return (in >= 0).select(in, alpha*in);
 }
 
 template <>
 template <typename ArrT>
-ArrT ActivFunc<InternalActivator::LReLU>::activToD(const ArrT& act) {
+ArrT ActivFunc<InternalActivator::LReLU>::activToD(const ArrT& act) const {
   constexpr double alpha = 1.0/128.0;
   // maybe return 0.5 at zero exactly to give nets that are zero-initialized some gradient
   return (act > 0).select(ArrT::Ones(), alpha*ArrT::Ones());
   // need to address why this is breaking at some point.
+  // the temporary object created by each condition might not last long enough
   // return (act > 0).select(ArrT::Ones(),
   // 			  (act < 0).select(alpha*ArrT::Ones(),
   // 					   0.5*(1+alpha)*ArrT::Ones()));

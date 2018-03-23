@@ -27,7 +27,8 @@ public:
 template <> // class template specialization
 template <typename ArrT>
 double Regressor<RegressionType::Categorical>::costFuncVal(const ArrT& xout, const ArrT& yin) const {
-  return  - (yin*log(xout)).sum() - (1.0-yin.sum())*log1p(-xout.sum());
+  return  - (yin*log(xout)).sum() - ((1.0-yin.colwise().sum())*log1p(-xout.colwise().sum())).sum();
+  // return  - (yin*log(xout)).sum() - (1.0-yin.sum())*log1p(-xout.sum());
 }
 
 template <>
@@ -45,7 +46,8 @@ template <typename ArrT>
 ArrT Regressor<RegressionType::Categorical>::outputGate(const ArrT& aout) const {
   using Eigen::exp;
   ArrT expvals = exp(aout).eval();
-  return expvals / (1.0 + expvals.sum());
+  // (1.0 + expvals.colwise().sum()) is a dynamic-range row vector w/ the normalization factor for each column
+  return expvals.rowwise() / (1.0 + expvals.colwise().sum());
   // traditionally, softmax does not have this extra 1.0 term, but we want to generalize cleanly from 1D case  
 }
 

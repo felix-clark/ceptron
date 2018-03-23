@@ -21,26 +21,24 @@ const Eigen::IOFormat my_fmt(3, // first value is the precision
 // borrow this function from other testing utility to check the neural net's derivative
 // we will really want to check element-by-element
 template <size_t Nin, size_t Nout, size_t Ntot>
-void check_gradient(IFeedForward<Nin, Nout, Ntot>& net, const Vec<Nin>& xin, const Vec<Nout>& yin, double ep=1e-4, double tol=1e-4) {
+void check_gradient(ISmallFeedForward<Nin, Nout, Ntot>& net, const Vec<Nin>& xin, const Vec<Nout>& yin, double ep=1e-4, double tol=1e-4) {
   constexpr size_t Npar = Ntot;
   const Array<Npar> p = net.getNetValue(); // don't make this a reference: the internal data will change!
 
-  net.propagateData(xin, yin); // this must be done before 
-  double fval = net.getCostFuncVal(); // don't think we actually need this, but it might be a nice check
+  func_grad_vals<Ntot> fgvals = net.costFuncAndGrad(xin, yin); // this must be done before 
+  double fval = fgvals.f; // don't think we actually need this, but it might be a nice check
 
-  Array<Npar> evalgrad = net.getCostFuncGrad();
+  Array<Npar> evalgrad = fgvals.g;
   double gradmag = sqrt(evalgrad.square().sum());
   Array<Npar> dir = (1.0+p.square()).sqrt()*evalgrad/gradmag; // vector along direction of greatest change
   double dirmag = sqrt(dir.square().sum());
   Array<Npar> dpar = ep*dir;
 
   net.accessNetValue() += dpar;
-  net.propagateData(xin, yin);
-  double fplus = net.getCostFuncVal();
+  double fplus = net.costFunc(xin, yin);
 
   net.accessNetValue() = p-dpar;
-  net.propagateData(xin, yin);
-  double fminus = net.getCostFuncVal();
+  double fminus = net.costFunc(xin, yin);
 
 
   Array<Npar> df;// maybe can do this slickly with colwise() or rowwise() ?
@@ -51,11 +49,9 @@ void check_gradient(IFeedForward<Nin, Nout, Ntot>& net, const Vec<Nin>& xin, con
     Array<Npar> pplus = p + dp;
     Array<Npar> pminus = p - dp;
     net.accessNetValue() = pplus;
-    net.propagateData(xin, yin);
-    double fplusi = net.getCostFuncVal();
+    double fplusi = net.costFunc(xin, yin);
     net.accessNetValue() = pminus;
-    net.propagateData(xin, yin);
-    double fminusi = net.getCostFuncVal();
+    double fminusi = net.costFunc(xin, yin);
     df(i_f) = (fplusi - fminusi)/(2*dpi);
   }
 
@@ -95,6 +91,7 @@ int main(int argc, char** argv) {
   // however the nested select() to attempt to check for x=0 screws up the gradient completely
   // constexpr InternalActivator Act=InternalActivator::LReLU;
   constexpr InternalActivator Act=InternalActivator::Softplus;
+  constexpr int batchSize = 1;
 
   // we can adjust the log level like so: (e.g. turn on debug)
   namespace logging = boost::log;
@@ -105,19 +102,20 @@ int main(int argc, char** argv) {
   constexpr size_t netsize = testNet.size();
   testNet.randomInit();
 
-  Vec<Nin> input;
+  BatchVec<Nin> input(Nin, batchSize); // i guess we need the length in the constructor still?
   input.setRandom();
 
-  Vec<Nout> output;
+  BatchVec<Nout> output(Nout, batchSize);
   output << 0.5, 0.25, 0.1, 0.01;
   
-  testNet.propagateData( input, output );
+  // we need to change the interface here to spit out intermediate-layer activations
+  // testNet.propagateData( input, output );
   BOOST_LOG_TRIVIAL(info) << "input data is:  " << input.transpose().format(my_fmt);
-  BOOST_LOG_TRIVIAL(info) << "input layer cache is:  " << testNet.getInputLayerActivation().transpose().format(my_fmt);
+  // BOOST_LOG_TRIVIAL(info) << "input layer cache is:  " << testNet.getInputLayerActivation().transpose().format(my_fmt);
   BOOST_LOG_TRIVIAL(info) << "first weights:\n" << testNet.getFirstSynapses().format(my_fmt);
-  BOOST_LOG_TRIVIAL(info) << "hidden activation:\n" << testNet.getHiddenLayerActivation().transpose().format(my_fmt);
+  // BOOST_LOG_TRIVIAL(info) << "hidden activation:\n" << testNet.getHiddenLayerActivation().transpose().format(my_fmt);
   BOOST_LOG_TRIVIAL(info) << "second weights:\n" << testNet.getSecondSynapses().format(my_fmt);
-  BOOST_LOG_TRIVIAL(info) << "output of random network is:  " << testNet.getOutput().transpose().format(my_fmt);
+  // BOOST_LOG_TRIVIAL(info) << "output of random network is:  " << testNet.getPrediction().transpose().format(my_fmt);
   auto& pars = testNet.getNetValue();
   // BOOST_LOG_TRIVIAL(info) << "net value of array:\n" << testNet.getNetValue().format(my_fmt);
   BOOST_LOG_TRIVIAL(info) << "array has " << pars.size() << " parameters.";

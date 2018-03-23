@@ -19,15 +19,18 @@ namespace { // protect these definitions locally; don't pollute global namespace
 
 // an interface class for NNs that takes only number of inputs and number of outputs.
 // we could probably use a better name for  this
+// we want the batch size to be dynamic so as to not incur difficult constraints on the input data. for large network sizes, compile-time constants won't actually help (and may in some cases hurt), so we'll use a different interface for large nets (dimension >~ 32)
+// we can't blindly plug in -1 for dynamic, because in some cases we use N+1 to include a bias term. a dynamic network will probably use a generic dynamic interface.
 template <size_t Nin, size_t Nout, size_t Ntot>
-class IFeedForward
+class ISmallFeedForward
 {
 public:
   constexpr static size_t size() {return Ntot;} // needs to be declared explicitly static to work. we may need to just make size_ public
-  virtual const Vec<Nout>& getOutput() const = 0; // returns cache
-  virtual void propagateData(const Vec<Nin>& x0, const Vec<Nout>& y) = 0;
-  virtual double getCostFuncVal() const = 0;
-  virtual const Array<Ntot>& getCostFuncGrad() const = 0;
+  // virtual const Vec<Nout>& getOutput() const = 0; // returns cache. complicated w/ batch input; do we really need this?
+  virtual func_grad_vals<Ntot> costFuncAndGrad(const BatchVec<Nin>& x0, const BatchVec<Nout>& y) const = 0;
+  virtual double costFunc(const BatchVec<Nin>& x0, const BatchVec<Nout>& y) const = 0; // some minimizers will perform a quick line search and only need the function value
+  // virtual double getCostFuncVal() const = 0;
+  // virtual const Array<Ntot>& getCostFuncGrad() const = 0;
   // Array<Nin+1> getInputLayerActivation() const = 0; // do we actually need this in the interface?
   virtual const Array<Ntot>& getNetValue() const = 0;
   virtual Array<Ntot>& accessNetValue() = 0; // allows use of in-place operations
@@ -41,7 +44,7 @@ template <size_t N, size_t M, size_t P=1,
 	  RegressionType Reg=RegressionType::Categorical,
 	  InternalActivator Act=InternalActivator::Tanh>
 class SingleHiddenLayer
-  : public virtual IFeedForward<N, P, M*(N+1)+P*(M+1)>
+  : public virtual ISmallFeedForward<N, P, M*(N+1)+P*(M+1)>
     // we have a shortcut for the total size parameter M*(N+1)+P*(M+1) below;
     //  it's not ideal to manually compute the size twice.
     // could get around it w/ C macros, but ideally we could avoid that
@@ -56,28 +59,28 @@ public:
   // SingleHiddenLayer() {};
   // ~SingleHiddenLayer() {};
   void randomInit() {net_.setRandom();};
-  const Vec<P>& getOutput() const override {return  output_layer_cache_.eval();}; // returns cache
+  const Vec<P>& getPrediction(const Vec<N>& x) const /*override*/; // should no longer return a cache; should compute for single vector
   // maybe we should have a function like setInput() and otherwise don't allow new input arrays, so it's clear what changes the cache
-  // double doPropForward(const Vec<N>&); // should maybe take an array instead of a vector? idk
-  // Array<size_> doPropBackward(double); // our output right now has only 1 value // or return gradient?
-  void propagateData(const Vec<N>& x0, const Vec<P>& y) override;
-  double getCostFuncVal() const override;
-  // const auto& getCostFuncGrad() const {return net_grad_cache_.eval();};
-  const Array<size_>& getCostFuncGrad() const override {return net_grad_cache_.eval();};
+  // double doPropForward(const Vec<N>&); // these forward/backward methods are the approach we should take when divying up by layer
+  // Array<size_> doPropBackward(double); // or return gradient?
+  // returns function value and gradient.
+  // do forward and backwards propagation:
+  func_grad_vals<size_> costFuncAndGrad(const BatchVec<N>& x0, const BatchVec<P>& y) const override;
+  // do forward prop only, which is useful for some line-searching minimizers:
+  double costFunc(const BatchVec<N>& x0, const BatchVec<P>& y) const override;
   // there is a type (extra stage) of backprop that would give derivatives w.r.t. *inputs* (not net values).
   // this could be useful for indicating which data elements are most relevant.
-  Array<N+1> getInputLayerActivation() const {return input_layer_cache_;};
-  Array<M+1> getHiddenLayerActivation() const {return hidden_layer_cache_;};
+  Array<N> getInputLayerActivation(const Vec<N>& in) const; // returns activation from single input. these will no longer be cached
+  Array<M> getHiddenLayerActivation(const Vec<N>& in) const;
   // using "auto" may not be best when returning a map view -- TODO: look into this more?
   auto getFirstSynapses() const {return Map< const Mat<M, N+1> >(net_.data());};
   auto getSecondSynapses() const
   {return Map< const Mat<P, M+1> >(net_.template segment<size_w2_>(size_w1_).data());};
   const Array<size_>& getNetValue() const override {return net_.eval();}  // these functions are the ones that need to be worked out for non-trivial passing of matrix data as an array. TODO: try an example
   // void setNetValue(const Eigen::Ref<const Array<size_>>& in) {net_ = in;}
-  // auto& accessNetValue() {return net_;} // allows use of in-place operations
   Array<size_>& accessNetValue() override {return net_;} // allows use of in-place operations
-  void resetCache();
-  void setL2RegParam(double lambda); // set a parameter to add a regularization term lambda*sum(net values squared). TODO: implement this
+  // we should probably handle regularization in the minimizer
+  // void setL2RegParam(double lambda); // set a parameter to add a regularization term lambda*sum(net values squared). TODO: implement this
 
   bool operator==(const SingleHiddenLayer<N,M,P,Reg,Act>& other) const;
   bool operator!=(const SingleHiddenLayer<N,M,P,Reg,Act>& other) const {return !(this->operator==(other));}
@@ -101,36 +104,7 @@ public:
 private:
   // we could also store these as matrices and map to an array using segment<>
   Array<size_> net_ = Array<size_>::Zero();  
-  // we should also cache the activation layer values. this will be necessary for efficient backpropagation.
-  // possibly will need to do this for multiple input/output sets at once, for minibatch gradient descent,
-  // although this loop may be able to work externally
-  //  store the bias terms in the cache for convenience
-  Vec<N+1> input_layer_cache_ = Vec<N+1>::Identity(); // trick to set 1st element to 1 be default: bias term
-  Vec<M+1> hidden_layer_cache_ = Vec<M+1>::Identity();
-  Vec<P> output_layer_cache_ = Vec<P>::Zero(); // no bias layer in output.
-  Array<size_> net_grad_cache_ = Array<size_>::Zero(); // may not be necessary for this SLFN, but when we break up into layers it might be
-  Vec<P> output_value_cache_ = Vec<P>::Zero();
-  // possible other parameters: regularization; normalization of cost function
 };
-
-// this operation just resets all data to zero and so may not be particularly useful except perhaps for validation and sanity checks
-template <size_t N, size_t M, size_t P,
-	  RegressionType Reg,
-	  InternalActivator Act>
-void SingleHiddenLayer<N,M,P,Reg,Act>::resetCache() {
-  input_layer_cache_ = Vec<N+1>::Identity();
-  hidden_layer_cache_ = Vec<M+1>::Identity();
-  output_layer_cache_ = Vec<P>::Zero();
-  output_value_cache_ = Vec<P>::Zero();
-  net_grad_cache_ = Array<size_>::Zero();
-}
-
-template <size_t N, size_t M, size_t P,
-	  RegressionType Reg,
-	  InternalActivator Act>
-double SingleHiddenLayer<N,M,P,Reg,Act>::getCostFuncVal() const {
-  return Regressor<Reg>::template costFuncVal< Array<P> >(output_layer_cache_.array(), output_value_cache_.array());
-}
 
 
 // we should be able to build up multi-layer networks by having each layer work as its own and having their forward and backward propagations interact with each other
@@ -142,12 +116,15 @@ double SingleHiddenLayer<N,M,P,Reg,Act>::getCostFuncVal() const {
 template <size_t N, size_t M, size_t P,
 	  RegressionType Reg,
 	  InternalActivator Act>
-void SingleHiddenLayer<N,M,P,Reg,Act>::propagateData(const Vec<N>& x0, const Vec<P>& y) {
+func_grad_vals<SingleHiddenLayer<N,M,P,Reg,Act>::size_>
+SingleHiddenLayer<N,M,P,Reg,Act>::costFuncAndGrad(const BatchVec<N>& x0, const BatchVec<P>& y) const {
   // resetCache(); // ? shouldn't actually be necessary; should compare in checks
+  const auto batchSize = x0.cols();
+  assert( batchSize == y.cols() );
 
   if (Reg == RegressionType::Categorical) {
     // this if statement should be optimized away at compile-time
-    if (y.sum() > 1.0) {
+    if ((y.colwise().sum().array() > 1.0).any()) {
       // multiple nets can be used for non-exclusive categories
       // TODO: implement logging system, and suppress this warning
       BOOST_LOG_TRIVIAL(warning) << "warning: classification data breaks unitarity. this net assumes mutually exclusive categories." << std::endl;
@@ -159,20 +136,36 @@ void SingleHiddenLayer<N,M,P,Reg,Act>::propagateData(const Vec<N>& x0, const Vec
   Mat<M, N+1> w1 = getFirstSynapses(); // don't think there is copying here for a Map object... but we should verify how it actually works.
   Mat<P, M+1> w2 = getSecondSynapses(); // const references shouldn't be necessary for the expression templates to work
 
-  input_layer_cache_.template segment<N>(1) = x0; // offset bias term
+  // input_layer_cache_.template segment<N>(1) = x0; // offset bias term
   // at some point we might wish to experiment with column-major (default) vs. row-major data storage order
-  Vec<M> a1 = w1 * input_layer_cache_; // matrix mult term
+  // Vec<M> a1 = w1 * input_layer_cache_; // matrix mult term
+  // BatchVec<M> b1 = w1.template leftCols<1>() * BatchVec<1>::Ones(1,batchSize);
+  BatchVec<M> a1 = w1.template leftCols<1>() * BatchVec<1>::Ones(1,batchSize) // bias terms
+    + w1.template rightCols<N>() * x0; // weights term
   // apply activation function element-wise; need to specify the template type
-  hidden_layer_cache_.template segment<M>(1) =
-    ActivFunc<Act>::template activ< Array<M> >(a1.array()).matrix().eval();
+  BatchVec<M> x1 = ActivFunc<Act>::template activ< BatchArray<M> >(a1.array()).matrix();
   
-  assert( input_layer_cache_(0) == 1. && hidden_layer_cache_(0) == 1.);
+  // hidden_layer_cache_.template segment<M>(1) =
+  //   ActivFunc<Act>::template activ< Array<M> >(a1.array()).matrix().eval();
   
-  Vec<P> a2 = w2 * hidden_layer_cache_;
+  // assert( input_layer_cache_(0) == 1. && hidden_layer_cache_(0) == 1.);
+  
+// Vec<P> a2 = w2 * hidden_layer_cache_;
+  BatchVec<P> a2 = w2.template leftCols<1>() * BatchVec<1>::Ones(1, batchSize)
+    + w2.template rightCols<M>() * x1;
 
-  output_layer_cache_ = Regressor<Reg>::template outputGate< Array<P> >(a2.array()).matrix();
-  output_value_cache_ = y;
+  assert( a2.cols() == batchSize );
+  
+  BatchVec<P> x2 = Regressor<Reg>::template outputGate< BatchArray<P> >(a2.array()).matrix();
+  // output_layer_cache_ = Regressor<Reg>::template outputGate< Array<P> >(a2.array()).matrix();
+  // output_value_cache_ = y;
+  assert( x2.cols() == batchSize );
 
+  // we might return f and gradient together... or maybe we just cache them
+  double costFuncVal = Regressor<Reg>::template costFuncVal< BatchArray<P> >(x2.array(), y.array());
+
+  // if (skip_backprop) return {costFuncVal, zeros}; // maybe we'd want to skip backprop sometimes for some reason -- might use different function for that
+  
   // now do backwards propagation
   // the dependence of the cost function on the data y depends on the type of regression, though it is quite similar for logistic and linear.
   // we will assume logistic for now, but it should require minor changes to generalize.
@@ -184,10 +177,6 @@ void SingleHiddenLayer<N,M,P,Reg,Act>::propagateData(const Vec<N>& x0, const Vec
     // derivative of softmax sm(x) is dsm(a_j)/d(a_k) = sm(a_j)*[delta_jk - sm(a_k)]
   // we actually will want a softmax with a non-interacting extra input layer w/ value 0 for normalization (for non-classified, or y=0)
 
-  Vec<P> delta_out = output_layer_cache_ - output_value_cache_; // x - y
-  // the above is a vector of length (output size) that must be contracted with the LHS of these matrices
-  // it turns out we can contract this vector pretty early on
-  
   // with layer L being the output layer:
   // dx_j^(L)/dw_mn^(L) = sigma'[a_j^(L)] * delta_jm * x_n^(L-1)
   // dx_j^(L)/dw_mn^(L-1) = sigma'[a_j^(L)] * w_jm^(L) * sigma'[a_m^(L-1)] * x_n^(L-2)
@@ -195,27 +184,60 @@ void SingleHiddenLayer<N,M,P,Reg,Act>::propagateData(const Vec<N>& x0, const Vec
   /// more generally:
   // dx_j^(L)/dw_mn^(L') = O^(L')_jm * x^(L')_n    where O^(L)_jm = delta_jm and
   //   O^(L-1)_jm = O^(L)_jk * w^(L)_km sigma'[a^(L)_m]  (matrix multiplication)
-  
-  Vec<P> d2 = delta_out; // this is potentially a redundant copy operation, except for expression templates
 
-  // Vec<M> e1 = logit_to_d<M>(hidden_layer_cache_.template segment<M>(1).array()).matrix(); // ignores bias term explicitly
-  // ignores bias term explicitly:
-  Vec<M> e1 = ActivFunc<Act>::template activToD< Array<M> >(hidden_layer_cache_.template segment<M>(1).array()).matrix();
+  // error term for output layer
+  BatchVec<P> d2 = x2 - y;
   
-  Vec<M> d1 = e1.asDiagonal() * (w2.template rightCols<M>()).transpose() * d2;
+  // bias term is no longer kept in hidden layer cache, so no need to segment:
+  // BatchVec<M> e1 = ActivFunc<Act>::template activToD< Array<M> >(x1.template segment<M>(1).array()).matrix();
+  BatchVec<M> e1 = ActivFunc<Act>::template activToD< Array<M> >(x1.array()).matrix();
+  // this "as diagonal" approach will no longer work w/ batches
+  // BatchVec<M> d1 = e1.asDiagonal() * (w2.template rightCols<M>()).transpose() * d2;
+  BatchVec<M> d1 = e1.cwiseProduct( (w2.template rightCols<M>()).transpose() * d2 );
 
-  auto grad_w2 = Map< Mat<P, M+1> >(net_grad_cache_.template segment<size_w2_>(size_w1_).data());
-  auto grad_w1 = Map< Mat<M, N+1> >(net_grad_cache_.template segment<size_w1_>(0).data());
+  Array<size_> costFuncGrad;
+  // Vec<M> gb1 = d1.rowwise().sum();
+  Mat<M,N> gw1 = d1 * x0.transpose(); // this operation contracts along the axis of different batch data points
+  // Eigen::Matrix<double, M,N, Eigen::RowMajor> gw1 = d1 * x0.transpose(); // this should fail gradient checks (and it does)
+  // Vec<P> gb2 = d2.rowwise().sum();
+  Mat<P,M> gw2 = d2 * x1.transpose();
+  // it would be nice to make this procedure more readable:
+  costFuncGrad << d1.rowwise().sum() // gb1 // this comes from the bias terms
+    , Map< Vec<M*N> >(gw1.data()) // is this really safe?
+    , d2.rowwise().sum() //gb2
+    , Map< Vec<P*M> >(gw2.data());
+  		   
+  // normalize by batch size
+  costFuncVal /= batchSize;
+  costFuncGrad /= batchSize;
+  return {costFuncVal, costFuncGrad};
+  
+}
 
-  grad_w2 = d2 * hidden_layer_cache_.transpose();
-  grad_w1 = d1 * input_layer_cache_.transpose();
-  
-  // // equivalently:
-  // Mat<P, M+1> grad_w2 = o2 * hidden_layer_cache_.transpose();
-  // Mat<M, N+1> grad_w1 = o1 * input_layer_cache_.transpose();
-  // net_grad_cache_.template segment<size_w1_>(0) = Map< Array<size_w1_> >(grad_w1.data());
-  // net_grad_cache_.template segment<size_w2_>(size_w1_) = Map< Array<size_w2_> >(grad_w2.data());
-  
+// we need to be careful w/ this function because it's similar to the version w/ gradient, but stops sooner.
+// a compositional style doesn't work trivially since the backprop needs some intermediate results from this calculation
+template <size_t N, size_t M, size_t P,
+	  RegressionType Reg,
+	  InternalActivator Act>
+double SingleHiddenLayer<N,M,P,Reg,Act>::costFunc(const BatchVec<N>& x0, const BatchVec<P>& y) const {
+  // we won't do as many checks in this version -- the whole point is to be fast.
+  const auto batchSize = x0.cols();
+  // propagate forwards
+  Mat<M, N+1> w1 = getFirstSynapses(); // don't think there is copying here for a Map object... but we should verify how it actually works.
+  Mat<P, M+1> w2 = getSecondSynapses(); // const references shouldn't be necessary for the expression templates to work
+
+  // a_n should just be temporary expressions
+  BatchVec<M> a1 = w1.template leftCols<1>() * BatchVec<1>::Ones(1,batchSize) // bias terms
+    + w1.template rightCols<N>() * x0; // weights term
+  BatchVec<M> x1 = ActivFunc<Act>::template activ< BatchArray<M> >(a1.array()).matrix(); // net output of layer 1
+  BatchVec<P> a2 = w2.template leftCols<1>() * BatchVec<1>::Ones(1, batchSize)
+    + w2.template rightCols<M>() * x1;
+  BatchVec<P> x2 = Regressor<Reg>::template outputGate< BatchArray<P> >(a2.array()).matrix();
+
+  // we might return f and gradient together... or maybe we just cache them
+  double costFuncVal = Regressor<Reg>::template costFuncVal< BatchArray<P> >(x2.array(), y.array());
+  costFuncVal / batchSize;
+  return costFuncVal;
 }
 
 
