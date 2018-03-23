@@ -27,7 +27,7 @@ class ISmallFeedForward
 public:
   constexpr static size_t size() {return Ntot;} // needs to be declared explicitly static to work. we may need to just make size_ public
   // virtual const Vec<Nout>& getOutput() const = 0; // returns cache. complicated w/ batch input; do we really need this?
-  virtual func_grad_vals<Ntot> costFuncAndGrad(const BatchVec<Nin>& x0, const BatchVec<Nout>& y) const = 0;
+  virtual func_grad_res<Ntot> costFuncAndGrad(const BatchVec<Nin>& x0, const BatchVec<Nout>& y) const = 0;
   virtual double costFunc(const BatchVec<Nin>& x0, const BatchVec<Nout>& y) const = 0; // some minimizers will perform a quick line search and only need the function value
   // virtual double getCostFuncVal() const = 0;
   // virtual const Array<Ntot>& getCostFuncGrad() const = 0;
@@ -65,7 +65,7 @@ public:
   // Array<size_> doPropBackward(double); // or return gradient?
   // returns function value and gradient.
   // do forward and backwards propagation:
-  func_grad_vals<size_> costFuncAndGrad(const BatchVec<N>& x0, const BatchVec<P>& y) const override;
+  func_grad_res<size_> costFuncAndGrad(const BatchVec<N>& x0, const BatchVec<P>& y) const override;
   // do forward prop only, which is useful for some line-searching minimizers:
   double costFunc(const BatchVec<N>& x0, const BatchVec<P>& y) const override;
   // there is a type (extra stage) of backprop that would give derivatives w.r.t. *inputs* (not net values).
@@ -116,9 +116,9 @@ private:
 template <size_t N, size_t M, size_t P,
 	  RegressionType Reg,
 	  InternalActivator Act>
-func_grad_vals<SingleHiddenLayer<N,M,P,Reg,Act>::size_>
+func_grad_res<SingleHiddenLayer<N,M,P,Reg,Act>::size_>
+// costFuncAndGrad<Reg,Act>(SingleHiddenLayer<N,M,P> net, const BatchVec<N>& x0, const BatchVec<P>& y) const {
 SingleHiddenLayer<N,M,P,Reg,Act>::costFuncAndGrad(const BatchVec<N>& x0, const BatchVec<P>& y) const {
-  // resetCache(); // ? shouldn't actually be necessary; should compare in checks
   const auto batchSize = x0.cols();
   assert( batchSize == y.cols() );
 

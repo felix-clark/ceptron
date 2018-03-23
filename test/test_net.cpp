@@ -9,21 +9,18 @@
 
 using namespace ceptron;
 
-template <size_t N>
-using func_t = std::function<double(Array<N>)>;
-template <size_t N>
-using grad_t = std::function<Array<N>(Array<N>)>;
-
-const Eigen::IOFormat my_fmt(3, // first value is the precision
-			     0, ", ", "\n", "[", "]");
-
+namespace {
+  // a local formatting option block for convenience
+  const Eigen::IOFormat my_fmt(3, // first value is the precision
+			       0, ", ", "\n", "[", "]");
+}
 
 // borrow this function from other testing utility to check the neural net's derivative
 // we will really want to check element-by-element
 template <size_t Nin, size_t Nout, size_t Npar>
 void check_gradient(ISmallFeedForward<Nin, Nout, Npar>& net, const BatchVec<Nin>& xin, const BatchVec<Nout>& yin, double ep=1e-4, double tol=1e-4) {
   const Array<Npar> p = net.getNetValue(); // don't make this a reference: the internal data will change!
-  func_grad_vals<Npar> fgvals = net.costFuncAndGrad(xin, yin); // this must be done before 
+  func_grad_res<Npar> fgvals = net.costFuncAndGrad(xin, yin); // this must be done before 
   double fval = fgvals.f; // don't think we actually need this, but it might be a nice check
   Array<Npar> evalgrad = fgvals.g;
 
@@ -69,7 +66,7 @@ int main(int, char**) {
   constexpr InternalActivator Act=InternalActivator::Softplus;
   constexpr int batchSize = 16;
 
-  // we can adjust the log level like so: (e.g. turn on debug)
+  // we can adjust the log level like so:
   namespace logging = boost::log;
   logging::core::get()->set_filter
     (logging::trivial::severity >= logging::trivial::info);
@@ -87,8 +84,9 @@ int main(int, char**) {
   output.setRandom();
   
   // we need to change the interface here to spit out intermediate-layer activations
+  // "activation" only has a useful debug meaning for a single layer
   // testNet.propagateData( input, output );
-  BOOST_LOG_TRIVIAL(info) << "input data is:  " << input.transpose().format(my_fmt);
+  BOOST_LOG_TRIVIAL(info) << "input data is:\n" << input.format(my_fmt);
   // BOOST_LOG_TRIVIAL(info) << "input layer cache is:  " << testNet.getInputLayerActivation().transpose().format(my_fmt);
   BOOST_LOG_TRIVIAL(info) << "first weights:\n" << testNet.getFirstSynapses().format(my_fmt);
   // BOOST_LOG_TRIVIAL(info) << "hidden activation:\n" << testNet.getHiddenLayerActivation().transpose().format(my_fmt);
