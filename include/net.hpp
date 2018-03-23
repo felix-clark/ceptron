@@ -1,21 +1,15 @@
+#pragma once
+#include "global.hpp"
 #include "regression.hpp"
 #include "activation.hpp"
+#include <boost/log/trivial.hpp>
 #include <Eigen/Dense>
 
 #include <iostream>
 #include <fstream>
 
-namespace { // protect these definitions locally, at least for now until we come up with a better global scheme
-  template <size_t M, size_t N>
-  using Mat = Eigen::Matrix<double, M, N>;
-  template <size_t M>
-  using Vec = Mat<M, 1>;
-  
-  template <size_t M> // don't think we need anything but column arrays
-  using Array = Eigen::Array<double, M, 1>;
-
-  using Eigen::Map;
-
+namespace { // protect these definitions locally
+  using namespace ceptron;
   using std::cout;
   using std::endl;
   using std::string;
@@ -159,7 +153,8 @@ void SingleHiddenLayer<N,M,P,Reg,Act>::propagateData(const Vec<N>& x0, const Vec
     if (y.sum() > 1.0) {
       // multiple nets can be used for non-exclusive categories
       // TODO: implement logging system, and suppress this warning
-      std::cout << "warning: classification data breaks unitarity. this net assumes mutually exclusive categories." << std::endl;
+      BOOST_LOG_TRIVIAL(warning) << "warning: classification data breaks unitarity. this net assumes mutually exclusive categories." << std::endl;
+      // std::cout << "warning: classification data breaks unitarity. this net assumes mutually exclusive categories." << std::endl;
       std::cout << "debug: y values:" << y.transpose() << std::endl;
     }
   }

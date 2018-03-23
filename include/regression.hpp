@@ -1,9 +1,13 @@
+#pragma once
+#include "global.hpp"
 #include <Eigen/Dense>
 
-namespace {
-  template <size_t M>
-  using Array = Eigen::Array<double, M, 1>;
-}
+// not actually needed right now
+// namespace {
+//   template <size_t N>
+//   // using Array = ceptron::Array<N>;
+//   using Array = ceptron::Array<N>;
+// }
 
 enum class RegressionType {Categorical, LeastSquares};
 // "Categorical" means "exclusive categorical", meaning |y| <= 1 and an implied "none" category is used for |y| < 1.

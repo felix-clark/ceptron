@@ -1,4 +1,6 @@
+#pragma once
 // class implementing activation functions and their derivatives
+/// as of now we don't actually need to include global.hpp
 #include <Eigen/Core> // math functions?
 // #include <Eigen/Dense>
 // #include <type_traits>
