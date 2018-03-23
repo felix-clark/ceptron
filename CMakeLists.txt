@@ -36,7 +36,7 @@ find_package(Boost 1.58 REQUIRED COMPONENTS log)
 
 # there must be a more efficient way of organizing these
 add_executable(test_min test/test_min.cpp)
-target_link_libraries(test_min ceptron)
+target_link_libraries(test_min ceptron ${Boost_LOG_LIBRARY} ${CMAKE_THREAD_LIBS_INIT})
 
 add_executable(test_net test/test_net.cpp)
 target_link_libraries(test_net ceptron ${Boost_LOG_LIBRARY} ${CMAKE_THREAD_LIBS_INIT})

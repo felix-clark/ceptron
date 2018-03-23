@@ -3,16 +3,13 @@
 #include "regression.hpp"
 #include "activation.hpp"
 #include <boost/log/trivial.hpp>
+// #include <boost/log/sources/basic_logger.hpp> // could be useful in class defs
 #include <Eigen/Dense>
 
-#include <iostream>
 #include <fstream>
 
-namespace { // protect these definitions locally
+namespace { // protect these definitions locally; don't pollute global namespace
   using namespace ceptron;
-  using std::cout;
-  using std::endl;
-  using std::string;
   using std::istream;
   using std::ostream;
   using std::ifstream;
@@ -98,8 +95,8 @@ public:
   	   RegressionType Regf,
   	   InternalActivator Actf>
   friend ostream& operator<<(ostream& out, const SingleHiddenLayer<Nf, Mf, Pf, Regf, Actf>& me);
-  void toFile(const string& fname) const;
-  void fromFile(const string& fname);
+  void toFile(const std::string& fname) const;
+  void fromFile(const std::string& fname);
   
 private:
   // we could also store these as matrices and map to an array using segment<>
@@ -154,8 +151,7 @@ void SingleHiddenLayer<N,M,P,Reg,Act>::propagateData(const Vec<N>& x0, const Vec
       // multiple nets can be used for non-exclusive categories
       // TODO: implement logging system, and suppress this warning
       BOOST_LOG_TRIVIAL(warning) << "warning: classification data breaks unitarity. this net assumes mutually exclusive categories." << std::endl;
-      // std::cout << "warning: classification data breaks unitarity. this net assumes mutually exclusive categories." << std::endl;
-      std::cout << "debug: y values:" << y.transpose() << std::endl;
+      BOOST_LOG_TRIVIAL(debug) << "y values:" << y.transpose();
     }
   }
   
@@ -264,11 +260,11 @@ ostream& operator<<(ostream& out, const SingleHiddenLayer<N, M, P, Reg, Act>& me
 template <size_t N, size_t M, size_t P,
 	  RegressionType Reg,
 	  InternalActivator Act>	  
-void SingleHiddenLayer<N,M,P,Reg,Act>::toFile(const string& fname) const {
+void SingleHiddenLayer<N,M,P,Reg,Act>::toFile(const std::string& fname) const {
   // ios::trunc erases any previous content in the file.
   ofstream fout(fname , ios::binary | ios::trunc );
   if (!fout.is_open()) {
-    cout << "could not open file " << fname << " for writing." << endl;
+    BOOST_LOG_TRIVIAL(error) << "could not open file " << fname << " for writing.";
   }
   fout << *this;
   fout.close();
@@ -277,10 +273,10 @@ void SingleHiddenLayer<N,M,P,Reg,Act>::toFile(const string& fname) const {
 template <size_t N, size_t M, size_t P,
 	  RegressionType Reg,
 	  InternalActivator Act>	  
-void SingleHiddenLayer<N,M,P,Reg,Act>::fromFile(const string& fname) {
+void SingleHiddenLayer<N,M,P,Reg,Act>::fromFile(const std::string& fname) {
   ifstream fin(fname, ios::binary);
   if (!fin.is_open()) {
-    cout << "could not open file " << fname << " for reading." << endl;
+    BOOST_LOG_TRIVIAL(error) << "could not open file " << fname << " for reading.";
     return;
   }
   fin >> *this; // streams are not efficient

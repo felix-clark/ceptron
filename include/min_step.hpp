@@ -1,17 +1,23 @@
 // header file for minimizers
+#pragma once
+#include "global.hpp"
 #include <functional>
 #include <Eigen/Dense>
 
-using Eigen::Array;
-using Eigen::Matrix;
+// using Eigen::Array;
+// using Eigen::Matrix;
 
-template <size_t N>
-using parvec = Array<double, N, 1>;
+namespace {
+  using ceptron::Array;
+  using ceptron::Mat;
+} // namespace
 
+// these may not be used elsewhere yet... keep them local?
 template <size_t N>
-using func_t = std::function<double(parvec<N>)>;
+using func_t = std::function<double(Array<N>)>;
 template <size_t N>
-using grad_t = std::function<parvec<N>(parvec<N>)>;
+using grad_t = std::function<Array<N>(Array<N>)>;
+
 
 // we should also implement a golden section search
 double line_search( std::function<double(double)>, double, double, size_t maxiter = 16, double tol=1e-6 );
@@ -29,7 +35,7 @@ public:
   IMinStep(){}
   virtual ~IMinStep(){}
   // step_pars returns the next value of the parameter vector
-  virtual parvec<N> getDeltaPar( func_t<N>, grad_t<N>, parvec<N> ) = 0;
+  virtual Array<N> getDeltaPar( func_t<N>, grad_t<N>, Array<N> ) = 0;
   // remove any cached information, which some minimizers use to optimize the step rates
   virtual void resetCache() = 0;
 };
@@ -42,7 +48,7 @@ class GradientDescent : public IMinStep<N>
 public:
   GradientDescent() {}
   ~GradientDescent() {};
-  virtual parvec<N> getDeltaPar( func_t<N>, grad_t<N>, parvec<N> ) override;
+  virtual Array<N> getDeltaPar( func_t<N>, grad_t<N>, Array<N> ) override;
   virtual void resetCache() override {}; // simple gradient descent uses no cache
   void setLearnRate(double lr) {learn_rate_ = lr;}
 private:
@@ -50,7 +56,7 @@ private:
 };
 
 template <size_t N>
-parvec<N> GradientDescent<N>::getDeltaPar( func_t<N>, grad_t<N> g, parvec<N> pars ) {
+Array<N> GradientDescent<N>::getDeltaPar( func_t<N>, grad_t<N> g, Array<N> pars ) {
   return - learn_rate_ * g(pars);
 }
 
@@ -63,18 +69,18 @@ class GradientDescentWithMomentum : public IMinStep<N>
 public:
   GradientDescentWithMomentum() {};
   ~GradientDescentWithMomentum() {};
-  virtual parvec<N> getDeltaPar( func_t<N>, grad_t<N>, parvec<N> ) override;
+  virtual Array<N> getDeltaPar( func_t<N>, grad_t<N>, Array<N> ) override;
   virtual void resetCache() override {momentum_term_.setZero();}
   void setLearnRate(double lr) {learn_rate_ = lr;}
   void setMomentumScale(double ms) {momentum_scale_ = ms;}
 private:
-  parvec<N> momentum_term_ = parvec<N>::Zero();
+  Array<N> momentum_term_ = Array<N>::Zero();
   double learn_rate_ = 0.005;
   double momentum_scale_ = 0.875;
 };
 
 template <size_t N>
-parvec<N> GradientDescentWithMomentum<N>::getDeltaPar( func_t<N>, grad_t<N> g, parvec<N> pars ) {
+Array<N> GradientDescentWithMomentum<N>::getDeltaPar( func_t<N>, grad_t<N> g, Array<N> pars ) {
   momentum_term_ = momentum_scale_ * momentum_term_ + learn_rate_ * g(pars);
   return - momentum_term_;
 }
@@ -91,18 +97,18 @@ public:
   // AcceleratedGradient(double learn_rate=0.01,
   // 		      double momentum_scale=0.875);
   ~AcceleratedGradient() {};
-  virtual parvec<N> getDeltaPar( func_t<N>, grad_t<N>, parvec<N> ) override;
+  virtual Array<N> getDeltaPar( func_t<N>, grad_t<N>, Array<N> ) override;
   virtual void resetCache() override {momentum_term_.setZero();}
   void setLearnRate(double lr) {learn_rate_ = lr;}
   void setMomentumScale(double ms) {momentum_scale_ = ms;}
 private:
-  parvec<N> momentum_term_ = parvec<N>::Zero();
+  Array<N> momentum_term_ = Array<N>::Zero();
   double learn_rate_ = 0.005;
   double momentum_scale_ = 0.875;
 };
 
 template <size_t N>
-parvec<N> AcceleratedGradient<N>::getDeltaPar( func_t<N>, grad_t<N> g, parvec<N> pars ) {
+Array<N> AcceleratedGradient<N>::getDeltaPar( func_t<N>, grad_t<N> g, Array<N> pars ) {
   momentum_term_ *= momentum_scale_; // exponentially reduce momentum term
   momentum_term_ += learn_rate_ * g(pars - momentum_term_);
   // momentum_term_ += learn_rate_ * g(pars - 0.5*momentum_term_); // using an average between new and old points can help with convergence on rosenbrock function
@@ -119,15 +125,15 @@ class AdaDelta : public IMinStep<N>
 public:
   AdaDelta() {};
   ~AdaDelta() {};
-  virtual parvec<N> getDeltaPar( func_t<N>, grad_t<N>, parvec<N> ) override;
+  virtual Array<N> getDeltaPar( func_t<N>, grad_t<N>, Array<N> ) override;
   virtual void resetCache() override;
   void setDecayScale(double ds) {decay_scale_ = ds;}
   void setLearnRate(double lr) {learn_rate_ = lr;}
   void setEpsilon(double ep) {ep_ = ep;}
 private:
-  parvec<N> accum_grad_sq_ = parvec<N>::Zero();
-  parvec<N> accum_dpar_sq_ = parvec<N>::Zero();
-  parvec<N> last_delta_par_ = parvec<N>::Zero();
+  Array<N> accum_grad_sq_ = Array<N>::Zero();
+  Array<N> accum_dpar_sq_ = Array<N>::Zero();
+  Array<N> last_delta_par_ = Array<N>::Zero();
   double decay_scale_ = 0.9375; // similar to window average of last 16 values. 0.875 for scale of 8 previous values
   double learn_rate_ = 1.0; // a default value that can be adjusted down if necessary
   double ep_ = 1e-6;
@@ -142,15 +148,15 @@ void AdaDelta<N>::resetCache()
 }
 
 template <size_t N>
-parvec<N> AdaDelta<N>::getDeltaPar( func_t<N> f, grad_t<N> g, parvec<N> pars )
+Array<N> AdaDelta<N>::getDeltaPar( func_t<N> f, grad_t<N> g, Array<N> pars )
 {
-  parvec<N> grad = g(pars); // an improvement might be to use an accelerated version
+  Array<N> grad = g(pars); // an improvement might be to use an accelerated version
   // element-wise learn rate
-  parvec<N> adj_learn_rate = sqrt((accum_dpar_sq_ + ep_)/(accum_grad_sq_ + ep_));
+  Array<N> adj_learn_rate = sqrt((accum_dpar_sq_ + ep_)/(accum_grad_sq_ + ep_));
 
   // scaling down helps convergence but does seem to slow things down.
   // perhaps a line search (golden section) would be an improvement
-  parvec<N> dp = - learn_rate_ * adj_learn_rate * grad;
+  Array<N> dp = - learn_rate_ * adj_learn_rate * grad;
   // we can do an explicit check to keep from over-stepping
 
   // we should remove the line search in the general step
@@ -189,10 +195,10 @@ class Bfgs : public IMinStep<N>
 public:
   Bfgs() {};
   ~Bfgs() {};
-  virtual parvec<N> getDeltaPar( func_t<N>, grad_t<N>, parvec<N> ) override;
+  virtual Array<N> getDeltaPar( func_t<N>, grad_t<N>, Array<N> ) override;
   virtual void resetCache() override;
 private:
-  Matrix<double, N, N> hessian_approx_ = decltype(hessian_approx_)::Identity();
+  Mat<N, N> hessian_approx_ = decltype(hessian_approx_)::Identity();
   double learn_rate_ = 1.0;
 };
 
@@ -203,13 +209,13 @@ void Bfgs<N>::resetCache()
 }
 
 template <size_t N>
-parvec<N> Bfgs<N>::getDeltaPar( func_t<N> f, grad_t<N> g, parvec<N> par )
+Array<N> Bfgs<N>::getDeltaPar( func_t<N> f, grad_t<N> g, Array<N> par )
 {
-  Matrix<double, N, 1> grad = g(par).matrix();
+  Mat<N, 1> grad = g(par).matrix();
   // the hessian approximation should remain positive definite. LLT requires positive-definiteness.
   // LLT actually yields NaN solutions at times so perhaps our hessian is not always pos-def.
   // using a line search seems to have alleviated this issue.
-  Matrix<double, N, 1> deltap = - learn_rate_ * hessian_approx_.llt().solve(grad);
+  Mat<N, 1> deltap = - learn_rate_ * hessian_approx_.llt().solve(grad);
   // VectorXd deltap = - learn_rate_ * hessian_approx_.ldlt().solve(grad);
   // VectorXd deltap = - learn_rate_ * hessian_approx_.householderQr().solve(grad); // no requirements on matrix for this
 
@@ -220,7 +226,7 @@ parvec<N> Bfgs<N>::getDeltaPar( func_t<N> f, grad_t<N> g, parvec<N> par )
 
   deltap *= alpha_step;
   
-  Matrix<double, N, 1> deltagrad = (g(par+deltap.array()).matrix() - grad);
+  Mat<N, 1> deltagrad = (g(par+deltap.array()).matrix() - grad);
 
   // storing hessian by its square root could  possibly help numerical stability
   // might be good to check for divide-by-zero here, even if it's not likely to happen

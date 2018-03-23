@@ -1,5 +1,6 @@
 #pragma once
 #include <Eigen/Core>
+
 namespace ceptron {
 
   template <size_t M, size_t N>
@@ -12,4 +13,5 @@ namespace ceptron {
 
   using Eigen::Map;
 
+  
 } // namespace ceptron

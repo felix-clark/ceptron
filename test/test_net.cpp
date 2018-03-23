@@ -1,6 +1,8 @@
 #include "global.hpp"
 #include "net.hpp"
+#include <boost/log/core.hpp>
 #include <boost/log/trivial.hpp>
+#include <boost/log/expressions.hpp>
 #include <Eigen/Core>
 #include <iostream>
 #include <functional>
@@ -16,17 +18,10 @@ const Eigen::IOFormat my_fmt(3, // first value is the precision
 			     0, ", ", "\n", "[", "]");
 
 
-// template <size_t N>
-// using Vec = Eigen::Matrix<double, N, 1>;
-
 // borrow this function from other testing utility to check the neural net's derivative
 // we will really want to check element-by-element
-// template <size_t N>
-// void check_gradient(func_t<N> f, grad_t<N> g, const Array<N>& p, double ep=1e-6, double tol=1e-2) {
-// template <size_t N, size_t M, size_t P, InternalActivator Act>
 template <size_t Nin, size_t Nout, size_t Ntot>
 void check_gradient(IFeedForward<Nin, Nout, Ntot>& net, const Vec<Nin>& xin, const Vec<Nout>& yin, double ep=1e-4, double tol=1e-4) {
-  // assume that a data point has already been put in
   constexpr size_t Npar = Ntot;
   const Array<Npar> p = net.getNetValue(); // don't make this a reference: the internal data will change!
 
@@ -100,6 +95,11 @@ int main(int argc, char** argv) {
   // however the nested select() to attempt to check for x=0 screws up the gradient completely
   // constexpr InternalActivator Act=InternalActivator::LReLU;
   constexpr InternalActivator Act=InternalActivator::Softplus;
+
+  // we can adjust the log level like so: (e.g. turn on debug)
+  namespace logging = boost::log;
+  logging::core::get()->set_filter
+    (logging::trivial::severity >= logging::trivial::info);
   
   SingleHiddenLayer<Nin, Nh, Nout, Reg, Act> testNet;
   constexpr size_t netsize = testNet.size();
