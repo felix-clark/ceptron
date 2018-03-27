@@ -18,22 +18,22 @@ template <RegressionType Reg>
 class Regressor
 {
 public:
-  template <typename ArrT> ArrT outputGate(const ArrT& aout) const;
-  template <typename ArrT> double costFuncVal(const ArrT& xout, const ArrT& yin) const; // compares y from data to output x of NN
+  template <typename ArrT> static ArrT outputGate(const ArrT& aout);
+  template <typename ArrT> static double costFuncVal(const ArrT& xout, const ArrT& yin); // compares y from data to output x of NN
   // we don't have to provide the derivative, it cancels out nicely for both regression types
   //  this statement is possibly somewhat general but it does depend on both the cost function and the output function of x
 };
 
 template <> // class template specialization
 template <typename ArrT>
-double Regressor<RegressionType::Categorical>::costFuncVal(const ArrT& xout, const ArrT& yin) const {
+double Regressor<RegressionType::Categorical>::costFuncVal(const ArrT& xout, const ArrT& yin) {
   return  - (yin*log(xout)).sum() - ((1.0-yin.colwise().sum())*log1p(-xout.colwise().sum())).sum();
   // return  - (yin*log(xout)).sum() - (1.0-yin.sum())*log1p(-xout.sum());
 }
 
 template <>
 template <typename ArrT>
-double Regressor<RegressionType::LeastSquares>::costFuncVal(const ArrT& xout, const ArrT& yin) const {
+double Regressor<RegressionType::LeastSquares>::costFuncVal(const ArrT& xout, const ArrT& yin) {
   // the convention in ML is to divide by factor of 2.
   // also makes backprop have same factors.
   // max likelihood of gaussian w/ variance 1
@@ -43,7 +43,7 @@ double Regressor<RegressionType::LeastSquares>::costFuncVal(const ArrT& xout, co
 
 template <>
 template <typename ArrT>
-ArrT Regressor<RegressionType::Categorical>::outputGate(const ArrT& aout) const {
+ArrT Regressor<RegressionType::Categorical>::outputGate(const ArrT& aout) {
   using Eigen::exp;
   ArrT expvals = exp(aout).eval();
   // (1.0 + expvals.colwise().sum()) is a dynamic-range row vector w/ the normalization factor for each column
@@ -53,7 +53,7 @@ ArrT Regressor<RegressionType::Categorical>::outputGate(const ArrT& aout) const 
 
 template <>
 template <typename ArrT>
-ArrT Regressor<RegressionType::LeastSquares>::outputGate(const ArrT& aout) const {
+ArrT Regressor<RegressionType::LeastSquares>::outputGate(const ArrT& aout) {
   // for a least-squares cost function, we need the output gate to be the identity in order to make backprop work the same way
   return aout;
 }
