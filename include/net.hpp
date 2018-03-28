@@ -41,7 +41,7 @@ namespace { // protect these definitions locally; don't pollute global namespace
 // this is a "single hidden layer feedforward network" (SLFN) with 1 output
 // N is input size, M is output layer size, P is the hidden layer size
 template <size_t N, size_t M=1, size_t P=N>
-class SingleHiddenLayer
+class SingleHiddenLayerStatic
 {
 private:
   static constexpr size_t size_w1_ = P*(N+1); // first layer
@@ -49,53 +49,49 @@ private:
   static constexpr size_t size_ = size_w1_ + size_w2_; // total size of data required to store net
 public:
   constexpr static size_t size() {return size_;}
-  // SingleHiddenLayer() {};
-  // ~SingleHiddenLayer() {};
-  void randomInit() {net_.setRandom();};
+  // SingleHiddenLayerStatic() {};
+  // ~SingleHiddenLayerStatic() {};
+  // it would be better to scale random initialization by 1/sqrt(n) where n is the number of inputs in a synapse.
+  //   this results in a variance of the neuron output that is not dependent on the number of inputs.
+  void randomInit() {net_ = (1./128.)*Array<size_>::Random();};
   // this could be useful for indicating which data elements are most relevant.
   Array<N> getInputLayerActivation(const Vec<N>& in) const; // returns activation from single input. these will no longer be cached
-  Array<P> getHiddenLayerActivation(const Vec<N>& in) const;
+  Array<P> getHiddenLayerActivation(const Vec<N>& in) const; // they don't actually need to be member functions
   // using "auto" may not be best when returning a map view -- TODO: look into this more?
   auto getFirstSynapses() const {return Map< const Mat<P, N+1> >(net_.data());};
   auto getSecondSynapses() const
   {return Map< const Mat<M, P+1> >(net_.template segment<size_w2_>(size_w1_).data());};
-  const Array<size_>& getNetValue() const {return net_.eval();}  // these functions are the ones that need to be worked out for non-trivial passing of matrix data as an array. TODO: try an example
+  const Array<size_>& getNetValue() const {return net_.eval();}
   Array<size_>& accessNetValue() {return net_;} // allows use of in-place operations
-  // we should probably handle regularization in the minimizer
-  // void setL2RegParam(double lambda); // set a parameter to add a regularization term lambda*sum(net values squared). TODO: implement this (but it should possibly happen in the minimizer/trainer)
 
-  bool operator==(const SingleHiddenLayer<N,M,P>& other) const;
-  bool operator!=(const SingleHiddenLayer<N,M,P>& other) const {return !(this->operator==(other));}
+  bool operator==(const SingleHiddenLayerStatic<N,M,P>& other) const;
+  bool operator!=(const SingleHiddenLayerStatic<N,M,P>& other) const {return !(this->operator==(other));}
 
   // using stream operators is not the most precise or efficient way to store doubles.
   // we'll save/load as binary, and there are better ways to do so directly.
   // overload streaming operators for input/output
   // not re-doing this template declaration leads to warnings. we might be fine without it, however.
   template<size_t Nf, size_t Mf, size_t Pf>
-  friend istream& operator>>(istream& in, SingleHiddenLayer<Nf, Mf, Pf>& me);
+  friend istream& operator>>(istream& in, SingleHiddenLayerStatic<Nf, Mf, Pf>& me);
   template<size_t Nf, size_t Mf, size_t Pf>
-  friend ostream& operator<<(ostream& out, const SingleHiddenLayer<Nf, Mf, Pf>& me);
+  friend ostream& operator<<(ostream& out, const SingleHiddenLayerStatic<Nf, Mf, Pf>& me);
   void toFile(const std::string& fname) const;
   void fromFile(const std::string& fname);
   
 private:
   // we could also store these as matrices and map to an array using segment<>
-  Array<size_> net_ = Array<size_>::Zero();  
+  Array<size_> net_ = Array<size_>::Zero();
 };
 
+
 // we should be able to build up multi-layer networks by having each layer work as its own and having their forward and backward propagations interact with each other
-// this function performs both the forward then the backward propagation for a given data point
-// generalization to mini-batches might be able to occur outside
 
 
-
-// should really consider changing the interface to have the parameters be external, but this is probably only useful for validation;
-//  for real training, it will help to have the gradient stored (except perhaps accelerated gradient)
 template <size_t N, size_t M, size_t P,
 	  RegressionType Reg,
-	  InternalActivator Act>
-ceptron::func_grad_res<SingleHiddenLayer<N,M,P>::size()>
-costFuncAndGrad(const SingleHiddenLayer<N,M,P>& net, const BatchVec<N>& x0, const BatchVec<M>& y) {
+	  InternalActivator Act=InternalActivator::Tanh>
+ceptron::func_grad_res<SingleHiddenLayerStatic<N,M,P>::size()>
+costFuncAndGrad(const SingleHiddenLayerStatic<N,M,P>& net, const BatchVec<N>& x0, const BatchVec<M>& y, double l2reg = 0.0) {
   const auto batchSize = x0.cols();
   assert( batchSize == y.cols() );
 
@@ -110,6 +106,7 @@ costFuncAndGrad(const SingleHiddenLayer<N,M,P>& net, const BatchVec<N>& x0, cons
   }
   
   // propagate forwards
+  // it may be simpler to split into weights and biases
   Mat<P, N+1> w1 = net.getFirstSynapses(); // don't think there is copying here for a Map object... but we should verify how it actually works.
   Mat<M, P+1> w2 = net.getSecondSynapses(); // const references shouldn't be necessary for the expression templates to work
 
@@ -127,7 +124,10 @@ costFuncAndGrad(const SingleHiddenLayer<N,M,P>& net, const BatchVec<N>& x0, cons
   assert( x2.cols() == batchSize );
 
   double costFuncVal = Regressor<Reg>::template costFuncVal< BatchArray<M> >(x2.array(), y.array());
-
+  double costFuncReg = w1.template rightCols<N>().array().square().sum()
+    + w2.template rightCols<P>().array().square().sum(); // lambda*sum (weights^2), but we don't include the bias terms
+  costFuncVal += l2reg * costFuncReg;
+  
   // now do backwards propagation
 
   // with layer L being the output layer:
@@ -144,11 +144,11 @@ costFuncAndGrad(const SingleHiddenLayer<N,M,P>& net, const BatchVec<N>& x0, cons
   BatchVec<P> e1 = ActivFunc<Act>::template activToD< BatchArray<P> >(x1.array()).matrix();
   BatchVec<P> d1 = e1.cwiseProduct( (w2.template rightCols<P>()).transpose() * d2 );
 
-  Array<SingleHiddenLayer<N,M,P>::size()> costFuncGrad;
-  // Vec<P> gb1 = d1.rowwise().sum();
-  Mat<P,N> gw1 = d1 * x0.transpose(); // this operation contracts along the axis of different batch data points
+  Array<SingleHiddenLayerStatic<N,M,P>::size()> costFuncGrad;
+  // Vec<P> gb1 = d1.rowwise().sum(); // this operation contracts along the axis of different batch data points
+  Mat<P,N> gw1 = d1 * x0.transpose() + 2.0*l2reg*w1.template rightCols<N>(); // add regularization term
   // Vec<M> gb2 = d2.rowwise().sum();
-  Mat<M,P> gw2 = d2 * x1.transpose();
+  Mat<M,P> gw2 = d2 * x1.transpose() + 2.0*l2reg*w2.template rightCols<P>();
   // it would be nice to make this procedure more readable:
   costFuncGrad << d1.rowwise().sum() // gb1 // this comes from the bias terms
     , Map< Vec<P*N> >(gw1.data()) // is this really safe?
@@ -158,7 +158,7 @@ costFuncAndGrad(const SingleHiddenLayer<N,M,P>& net, const BatchVec<N>& x0, cons
   // normalize by batch size
   costFuncVal /= batchSize;
   costFuncGrad /= batchSize;
-  return {costFuncVal, costFuncGrad};  
+  return {costFuncVal, costFuncGrad};
 }
 
 // we need to be careful w/ this function because it's similar to the version w/ gradient, but stops sooner.
@@ -166,7 +166,7 @@ costFuncAndGrad(const SingleHiddenLayer<N,M,P>& net, const BatchVec<N>& x0, cons
 template <size_t N, size_t M, size_t P,
 	  RegressionType Reg,
 	  InternalActivator Act>
-double costFunc(const SingleHiddenLayer<N,M,P>& net, const BatchVec<N>& x0, const BatchVec<M>& y) {
+double costFunc(const SingleHiddenLayerStatic<N,M,P>& net, const BatchVec<N>& x0, const BatchVec<M>& y, double l2reg = 0.0) {
   // we won't do as many checks in this version -- the whole point is to be fast.
   const auto batchSize = x0.cols();
   // propagate forwards
@@ -183,6 +183,10 @@ double costFunc(const SingleHiddenLayer<N,M,P>& net, const BatchVec<N>& x0, cons
 
   // we might return f and gradient together... or maybe we just cache them
   double costFuncVal = Regressor<Reg>::template costFuncVal< BatchArray<M> >(x2.array(), y.array());
+  double costFuncReg = w1.template rightCols<N>().array().square().sum()
+    + w2.template rightCols<P>().array().square().sum(); // lambda*sum (weights^2), but we don't include the bias terms
+  costFuncVal += l2reg * costFuncReg;
+  // normalize after regularization term, which seems like a strange convention
   costFuncVal /= batchSize;
   return costFuncVal;
 }
@@ -191,7 +195,7 @@ double costFunc(const SingleHiddenLayer<N,M,P>& net, const BatchVec<N>& x0, cons
 template <size_t N, size_t M, size_t P,
 	  RegressionType Reg,
 	  InternalActivator Act>
-Vec<M> getPrediction(const SingleHiddenLayer<N,M,P>& net, const Vec<N>& x0) {
+Vec<M> getPrediction(const SingleHiddenLayerStatic<N,M,P>& net, const Vec<N>& x0) {
   Mat<P, N+1> w1 = net.getFirstSynapses();
   Mat<M, P+1> w2 = net.getSecondSynapses();
 
@@ -207,12 +211,12 @@ Vec<M> getPrediction(const SingleHiddenLayer<N,M,P>& net, const Vec<N>& x0) {
 
 
 template <size_t N, size_t M, size_t P>	  
-bool SingleHiddenLayer<N,M,P>::operator==(const SingleHiddenLayer<N,M,P>& other) const {
+bool SingleHiddenLayerStatic<N,M,P>::operator==(const SingleHiddenLayerStatic<N,M,P>& other) const {
   return (this->net_ == other.net_).all();
 }
 
 template <size_t N, size_t M, size_t P>
-istream& operator>>(istream& in, SingleHiddenLayer<N, M, P>& me) {
+istream& operator>>(istream& in, SingleHiddenLayerStatic<N, M, P>& me) {
   // TODO: some metadata at the top would be nice for verification
   // let's wait until we have a more general setup (e.g. multilayer) before we worry about that.
   for (size_t i=0; i<me.size_; ++i) {
@@ -229,7 +233,7 @@ istream& operator>>(istream& in, SingleHiddenLayer<N, M, P>& me) {
 }
 
 template <size_t N, size_t M, size_t P>
-ostream& operator<<(ostream& out, const SingleHiddenLayer<N, M, P>& me) {
+ostream& operator<<(ostream& out, const SingleHiddenLayerStatic<N, M, P>& me) {
   for (size_t i=0; i<me.size(); ++i) {
     // we do want to go hexfloat, otherwise we suffer a precision loss
     out << std::hexfloat << me.net_(i) << '\n';// removing newline doesn't work even w/ binary, possibly because of the issue discussed in operatior>>().
@@ -239,7 +243,7 @@ ostream& operator<<(ostream& out, const SingleHiddenLayer<N, M, P>& me) {
 
 
 template <size_t N, size_t M, size_t P>
-void SingleHiddenLayer<N,M,P>::toFile(const std::string& fname) const {
+void SingleHiddenLayerStatic<N,M,P>::toFile(const std::string& fname) const {
   // ios::trunc erases any previous content in the file.
   ofstream fout(fname , ios::binary | ios::trunc );
   if (!fout.is_open()) {
@@ -250,7 +254,7 @@ void SingleHiddenLayer<N,M,P>::toFile(const std::string& fname) const {
 }
 
 template <size_t N, size_t M, size_t P>	  
-void SingleHiddenLayer<N,M,P>::fromFile(const std::string& fname) {
+void SingleHiddenLayerStatic<N,M,P>::fromFile(const std::string& fname) {
   ifstream fin(fname, ios::binary);
   if (!fin.is_open()) {
     BOOST_LOG_TRIVIAL(error) << "could not open file " << fname << " for reading.";

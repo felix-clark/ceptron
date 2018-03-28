@@ -19,11 +19,11 @@ namespace {
 // we will really want to check element-by-element
 template <size_t Nin, size_t Nout, size_t Nhid,
 	  RegressionType Reg, InternalActivator Act>
-void check_gradient(SingleHiddenLayer<Nin, Nout, Nhid>& net, const BatchVec<Nin>& xin, const BatchVec<Nout>& yin, double ep=1e-4, double tol=1e-4) {
-  // constexpr size_t Npar = SingleHiddenLayer<Nin, Nout, Nhid>::size_;
+void check_gradient(SingleHiddenLayerStatic<Nin, Nout, Nhid>& net, const BatchVec<Nin>& xin, const BatchVec<Nout>& yin, double l2reg=0.01, double ep=1e-4, double tol=1e-8) {
+  // constexpr size_t Npar = SingleHiddenLayerStatic<Nin, Nout, Nhid>::size_;
   constexpr size_t Npar = net.size();
   const Array<Npar> p = net.getNetValue(); // don't make this a reference: the internal data will change!
-  func_grad_res<Npar> fgvals = costFuncAndGrad<Nin, Nout, Nhid, Reg, Act>(net, xin, yin); // this must be done before 
+  func_grad_res<Npar> fgvals = costFuncAndGrad<Nin, Nout, Nhid, Reg, Act>(net, xin, yin, l2reg); // this must be done before 
   double fval = fgvals.f; // don't think we actually need this, but it might be a nice check
   Array<Npar> evalgrad = fgvals.g;
 
@@ -35,9 +35,9 @@ void check_gradient(SingleHiddenLayer<Nin, Nout, Nhid>& net, const BatchVec<Nin>
     Array<Npar> pplus = p + dp;
     Array<Npar> pminus = p - dp;
     net.accessNetValue() = pplus;
-    double fplusi = costFunc<Nin, Nout, Nhid, Reg, Act>(net, xin, yin);
+    double fplusi = costFunc<Nin, Nout, Nhid, Reg, Act>(net, xin, yin, l2reg);
     net.accessNetValue() = pminus;
-    double fminusi = costFunc<Nin, Nout, Nhid, Reg, Act>(net, xin, yin);
+    double fminusi = costFunc<Nin, Nout, Nhid, Reg, Act>(net, xin, yin, l2reg);
     df(i_f) = (fplusi - fminusi)/(2*dpi);
   }
   
@@ -74,7 +74,7 @@ int main(int, char**) {
   logging::core::get()->set_filter
     (logging::trivial::severity >= logging::trivial::info);
   
-  SingleHiddenLayer<Nin, Nout, Nh> testNet;
+  SingleHiddenLayerStatic<Nin, Nout, Nh> testNet;
   testNet.randomInit();
 
   BatchVec<Nin> input(Nin, batchSize); // i guess we need the length in the constructor still?
@@ -113,7 +113,7 @@ int main(int, char**) {
   check_gradient<Nin, Nout, Nh, Reg, Act>( testNet, input, output );
 
   testNet.toFile("testcopy.net");
-  SingleHiddenLayer<Nin, Nout, Nh> netCopy;
+  SingleHiddenLayerStatic<Nin, Nout, Nh> netCopy;
   netCopy.fromFile("testcopy.net");
   if ( testNet != netCopy) {
     BOOST_LOG_TRIVIAL(warning) << "loaded net is not the same!";
