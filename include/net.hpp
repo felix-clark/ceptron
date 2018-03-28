@@ -49,11 +49,13 @@ private:
   static constexpr size_t size_ = size_w1_ + size_w2_; // total size of data required to store net
 public:
   constexpr static size_t size() {return size_;}
-  // SingleHiddenLayerStatic() {};
+  SingleHiddenLayerStatic() {randomInit();} // forgetting to randomly initialize can be bad, so we'll do it automatically right now.
+  SingleHiddenLayerStatic(const Array<size_>& ar) {net_=ar;}; // to construct/convert directly from array
   // ~SingleHiddenLayerStatic() {};
-  // it would be better to scale random initialization by 1/sqrt(n) where n is the number of inputs in a synapse.
+  // it is better to scale random initialization by 1/sqrt(n) where n is the number of inputs in a synapse.
   //   this results in a variance of the neuron output that is not dependent on the number of inputs.
-  void randomInit() {net_ = (1./128.)*Array<size_>::Random();};
+  //   dividing by the total size is just a rough approximation
+  void randomInit() {net_ = (1./size_)*Array<size_>::Random();};
   // this could be useful for indicating which data elements are most relevant.
   Array<N> getInputLayerActivation(const Vec<N>& in) const; // returns activation from single input. these will no longer be cached
   Array<P> getHiddenLayerActivation(const Vec<N>& in) const; // they don't actually need to be member functions
@@ -89,7 +91,7 @@ private:
 
 template <size_t N, size_t M, size_t P,
 	  RegressionType Reg,
-	  InternalActivator Act=InternalActivator::Tanh>
+	  InternalActivator Act>
 ceptron::func_grad_res<SingleHiddenLayerStatic<N,M,P>::size()>
 costFuncAndGrad(const SingleHiddenLayerStatic<N,M,P>& net, const BatchVec<N>& x0, const BatchVec<M>& y, double l2reg = 0.0) {
   const auto batchSize = x0.cols();
@@ -199,13 +201,16 @@ Vec<M> getPrediction(const SingleHiddenLayerStatic<N,M,P>& net, const Vec<N>& x0
   Mat<P, N+1> w1 = net.getFirstSynapses();
   Mat<M, P+1> w2 = net.getSecondSynapses();
 
+  // BOOST_LOG_TRIVIAL( trace ) << "x0: " << x0.transpose();
   // a_n should just be temporary expressions
   Vec<P> a1 = w1.template leftCols<1>() // bias terms
     + w1.template rightCols<N>() * x0; // weights term
   Vec<P> x1 = ActivFunc<Act>::template activ< Array<P> >(a1.array()).matrix(); // net output of layer 1
+  // BOOST_LOG_TRIVIAL( trace ) << "x1: " << x1.transpose();
   Vec<M> a2 = w2.template leftCols<1>()
     + w2.template rightCols<P>() * x1;
   Vec<M> x2 = Regressor<Reg>::template outputGate< Array<M> >(a2.array()).matrix();
+  // BOOST_LOG_TRIVIAL( trace ) << "x2: " << x2.transpose();
   return x2;
 }
 
