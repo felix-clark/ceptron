@@ -13,3 +13,7 @@ Ideally, install the testing utilities with
 `cmake ..`
 
 `make`
+
+After compilation, a testing trainer can be ran on the animal data:
+
+`../ceptron/bin/test_train ../ceptron/data/zoo.data`
