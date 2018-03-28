@@ -17,10 +17,13 @@ namespace {
 
 // borrow this function from other testing utility to check the neural net's derivative
 // we will really want to check element-by-element
-template <size_t Nin, size_t Nout, size_t Npar>
-void check_gradient(ISmallFeedForward<Nin, Nout, Npar>& net, const BatchVec<Nin>& xin, const BatchVec<Nout>& yin, double ep=1e-4, double tol=1e-4) {
+template <size_t Nin, size_t Nout, size_t Nhid,
+	  RegressionType Reg, InternalActivator Act>
+void check_gradient(SingleHiddenLayer<Nin, Nout, Nhid>& net, const BatchVec<Nin>& xin, const BatchVec<Nout>& yin, double ep=1e-4, double tol=1e-4) {
+  // constexpr size_t Npar = SingleHiddenLayer<Nin, Nout, Nhid>::size_;
+  constexpr size_t Npar = net.size();
   const Array<Npar> p = net.getNetValue(); // don't make this a reference: the internal data will change!
-  func_grad_res<Npar> fgvals = net.costFuncAndGrad(xin, yin); // this must be done before 
+  func_grad_res<Npar> fgvals = costFuncAndGrad<Nin, Nout, Nhid, Reg, Act>(net, xin, yin); // this must be done before 
   double fval = fgvals.f; // don't think we actually need this, but it might be a nice check
   Array<Npar> evalgrad = fgvals.g;
 
@@ -32,9 +35,9 @@ void check_gradient(ISmallFeedForward<Nin, Nout, Npar>& net, const BatchVec<Nin>
     Array<Npar> pplus = p + dp;
     Array<Npar> pminus = p - dp;
     net.accessNetValue() = pplus;
-    double fplusi = net.costFunc(xin, yin);
+    double fplusi = costFunc<Nin, Nout, Nhid, Reg, Act>(net, xin, yin);
     net.accessNetValue() = pminus;
-    double fminusi = net.costFunc(xin, yin);
+    double fminusi = costFunc<Nin, Nout, Nhid, Reg, Act>(net, xin, yin);
     df(i_f) = (fplusi - fminusi)/(2*dpi);
   }
   
@@ -55,8 +58,8 @@ void check_gradient(ISmallFeedForward<Nin, Nout, Npar>& net, const BatchVec<Nin>
 int main(int, char**) {
 
   constexpr size_t Nin = 8;
-  constexpr size_t Nh = 4;
   constexpr size_t Nout = 4;
+  constexpr size_t Nh = 6; // number of nodes in hidden layer
   constexpr RegressionType Reg=RegressionType::Categorical;
   // constexpr RegressionType Reg=RegressionType::LeastSquares;
   // constexpr InternalActivator Act=InternalActivator::Tanh;
@@ -71,8 +74,7 @@ int main(int, char**) {
   logging::core::get()->set_filter
     (logging::trivial::severity >= logging::trivial::info);
   
-  SingleHiddenLayer<Nin, Nh, Nout, Reg, Act> testNet;
-  constexpr size_t netsize = testNet.size();
+  SingleHiddenLayer<Nin, Nout, Nh> testNet;
   testNet.randomInit();
 
   BatchVec<Nin> input(Nin, batchSize); // i guess we need the length in the constructor still?
@@ -96,22 +98,22 @@ int main(int, char**) {
   // BOOST_LOG_TRIVIAL(info) << "net value of array:\n" << testNet.getNetValue().format(my_fmt);
   BOOST_LOG_TRIVIAL(info) << "array has " << pars.size() << " parameters.";
 
-  check_gradient<Nin, Nout, netsize>( testNet, input, output );
+  check_gradient<Nin, Nout, Nh, Reg, Act>( testNet, input, output );
 
   testNet.randomInit();
   input.setRandom();
   // output << 1e-6, 0.02, 0.2, 0.01;
   output.setRandom();
-  check_gradient<Nin, Nout, netsize>( testNet, input, output );
+  check_gradient<Nin, Nout, Nh, Reg, Act>( testNet, input, output );
 
   testNet.randomInit();
   input.setRandom(); // should also check pathological x values
   // output << 0.9, -0.1, 10.0, 0.1; // this one has nonsensical values but we can check the gradient regardless (it may give warning messages)
   output.setRandom();
-  check_gradient<Nin, Nout, netsize>( testNet, input, output );
+  check_gradient<Nin, Nout, Nh, Reg, Act>( testNet, input, output );
 
   testNet.toFile("testcopy.net");
-  SingleHiddenLayer<Nin, Nh, Nout, Reg, Act> netCopy;
+  SingleHiddenLayer<Nin, Nout, Nh> netCopy;
   netCopy.fromFile("testcopy.net");
   if ( testNet != netCopy) {
     BOOST_LOG_TRIVIAL(warning) << "loaded net is not the same!";

@@ -39,55 +39,36 @@ namespace { // protect these definitions locally; don't pollute global namespace
 
 // we will really want to break this apart (into layers?) and generalize it but first let's get a simple working example.
 // this is a "single hidden layer feedforward network" (SLFN) with 1 output
-// N is input size, M is hidden layer size, P is output size
-template <size_t N, size_t M, size_t P=1/*,
-	  RegressionType Reg=RegressionType::Categorical,
-	  InternalActivator Act=InternalActivator::Tanh*/>
+// N is input size, M is output layer size, P is the hidden layer size
+template <size_t N, size_t M=1, size_t P=N>
 class SingleHiddenLayer
-  // : public virtual ISmallFeedForward<N, P, M*(N+1)+P*(M+1)>
-    // we have a shortcut for the total size parameter M*(N+1)+P*(M+1) below;
-    //  it's not ideal to manually compute the size twice.
-    // could get around it w/ C macros, but ideally we could avoid that
 {
 private:
-  static constexpr size_t size_w1_ = M*(N+1); // first layer
-  static constexpr size_t size_w2_ = P*(M+1); // output layer
+  static constexpr size_t size_w1_ = P*(N+1); // first layer
+  static constexpr size_t size_w2_ = M*(P+1); // output layer
   static constexpr size_t size_ = size_w1_ + size_w2_; // total size of data required to store net
 public:
+  constexpr static size_t size() {return size_;}
   // SingleHiddenLayer() {};
   // ~SingleHiddenLayer() {};
   void randomInit() {net_.setRandom();};
-  // const Vec<P>& getPrediction(const Vec<N>& x) const /*override*/; // should no longer return a cache; should compute for single vector
-  // maybe we should have a function like setInput() and otherwise don't allow new input arrays, so it's clear what changes the cache
-  // double doPropForward(const Vec<N>&); // these forward/backward methods are the approach we should take when divying up by layer
-  // Array<size_> doPropBackward(double); // or return gradient?
-  // returns function value and gradient.
-  // do forward and backwards propagation:
-  // template <RegressionType Reg=RegressionType::Categorical,
-  // 	    InternalActivator Act=InternalActivator::Tanh>
-  //   ceptron::func_grad_res<size_> costFuncAndGrad<Reg, Act>(const BatchVec<N>& x0, const BatchVec<P>& y) const override;
-  // do forward prop only, which is useful for some line-searching minimizers:
-  // double costFunc(const BatchVec<N>& x0, const BatchVec<P>& y) const override;
-  // there is a type (extra stage) of backprop that would give derivatives w.r.t. *inputs* (not net values).
   // this could be useful for indicating which data elements are most relevant.
   Array<N> getInputLayerActivation(const Vec<N>& in) const; // returns activation from single input. these will no longer be cached
-  Array<M> getHiddenLayerActivation(const Vec<N>& in) const;
+  Array<P> getHiddenLayerActivation(const Vec<N>& in) const;
   // using "auto" may not be best when returning a map view -- TODO: look into this more?
-  auto getFirstSynapses() const {return Map< const Mat<M, N+1> >(net_.data());};
+  auto getFirstSynapses() const {return Map< const Mat<P, N+1> >(net_.data());};
   auto getSecondSynapses() const
-  {return Map< const Mat<P, M+1> >(net_.template segment<size_w2_>(size_w1_).data());};
-  const Array<size_>& getNetValue() const override {return net_.eval();}  // these functions are the ones that need to be worked out for non-trivial passing of matrix data as an array. TODO: try an example
-  // void setNetValue(const Eigen::Ref<const Array<size_>>& in) {net_ = in;}
-  Array<size_>& accessNetValue() override {return net_;} // allows use of in-place operations
+  {return Map< const Mat<M, P+1> >(net_.template segment<size_w2_>(size_w1_).data());};
+  const Array<size_>& getNetValue() const {return net_.eval();}  // these functions are the ones that need to be worked out for non-trivial passing of matrix data as an array. TODO: try an example
+  Array<size_>& accessNetValue() {return net_;} // allows use of in-place operations
   // we should probably handle regularization in the minimizer
   // void setL2RegParam(double lambda); // set a parameter to add a regularization term lambda*sum(net values squared). TODO: implement this (but it should possibly happen in the minimizer/trainer)
 
   bool operator==(const SingleHiddenLayer<N,M,P>& other) const;
   bool operator!=(const SingleHiddenLayer<N,M,P>& other) const {return !(this->operator==(other));}
 
-  // using stream operators is not a precise or efficient way to store doubles.
+  // using stream operators is not the most precise or efficient way to store doubles.
   // we'll save/load as binary, and there are better ways to do so directly.
-  // see: http://www.cplusplus.com/doc/tutorial/files/
   // overload streaming operators for input/output
   // not re-doing this template declaration leads to warnings. we might be fine without it, however.
   template<size_t Nf, size_t Mf, size_t Pf>
@@ -113,8 +94,8 @@ private:
 template <size_t N, size_t M, size_t P,
 	  RegressionType Reg,
 	  InternalActivator Act>
-ceptron::func_grad_res<SingleHiddenLayer<N,M,P>::size_>
-costFuncAndGrad(const SingleHiddenLayer<N,M,P>& net, const BatchVec<N>& x0, const BatchVec<P>& y) {
+ceptron::func_grad_res<SingleHiddenLayer<N,M,P>::size()>
+costFuncAndGrad(const SingleHiddenLayer<N,M,P>& net, const BatchVec<N>& x0, const BatchVec<M>& y) {
   const auto batchSize = x0.cols();
   assert( batchSize == y.cols() );
 
@@ -129,24 +110,23 @@ costFuncAndGrad(const SingleHiddenLayer<N,M,P>& net, const BatchVec<N>& x0, cons
   }
   
   // propagate forwards
-  Mat<M, N+1> w1 = net.getFirstSynapses(); // don't think there is copying here for a Map object... but we should verify how it actually works.
-  Mat<P, M+1> w2 = net.getSecondSynapses(); // const references shouldn't be necessary for the expression templates to work
+  Mat<P, N+1> w1 = net.getFirstSynapses(); // don't think there is copying here for a Map object... but we should verify how it actually works.
+  Mat<M, P+1> w2 = net.getSecondSynapses(); // const references shouldn't be necessary for the expression templates to work
 
   // at some point we might wish to experiment with column-major (default) vs. row-major data storage order
-  BatchVec<M> a1 = w1.template leftCols<1>() * BatchVec<1>::Ones(1,batchSize) // bias terms
+  BatchVec<P> a1 = w1.template leftCols<1>() * BatchVec<1>::Ones(1,batchSize) // bias terms
     + w1.template rightCols<N>() * x0; // weights term
   // apply activation function element-wise; need to specify the template type
-  BatchVec<M> x1 = ActivFunc<Act>::template activ< BatchArray<M> >(a1.array()).matrix();
+  BatchVec<P> x1 = ActivFunc<Act>::template activ< BatchArray<P> >(a1.array()).matrix();
   
-  BatchVec<P> a2 = w2.template leftCols<1>() * BatchVec<1>::Ones(1, batchSize)
-    + w2.template rightCols<M>() * x1;
+  BatchVec<M> a2 = w2.template leftCols<1>() * BatchVec<1>::Ones(1, batchSize)
+    + w2.template rightCols<P>() * x1;
   assert( a2.cols() == batchSize );
   
-  BatchVec<P> x2 = Regressor<Reg>::template outputGate< BatchArray<P> >(a2.array()).matrix();
+  BatchVec<M> x2 = Regressor<Reg>::template outputGate< BatchArray<M> >(a2.array()).matrix();
   assert( x2.cols() == batchSize );
 
-  // we might return f and gradient together... or maybe we just cache them
-  double costFuncVal = Regressor<Reg>::template costFuncVal< BatchArray<P> >(x2.array(), y.array());
+  double costFuncVal = Regressor<Reg>::template costFuncVal< BatchArray<M> >(x2.array(), y.array());
 
   // now do backwards propagation
 
@@ -159,21 +139,21 @@ costFuncAndGrad(const SingleHiddenLayer<N,M,P>& net, const BatchVec<N>& x0, cons
   //   O^(L-1)_jm = O^(L)_jk * w^(L)_km sigma'[a^(L)_m]  (matrix multiplication)
 
   // error term for output layer
-  BatchVec<P> d2 = x2 - y;
+  BatchVec<M> d2 = x2 - y;
   
-  BatchVec<M> e1 = ActivFunc<Act>::template activToD< BatchArray<M> >(x1.array()).matrix();
-  BatchVec<M> d1 = e1.cwiseProduct( (w2.template rightCols<M>()).transpose() * d2 );
+  BatchVec<P> e1 = ActivFunc<Act>::template activToD< BatchArray<P> >(x1.array()).matrix();
+  BatchVec<P> d1 = e1.cwiseProduct( (w2.template rightCols<P>()).transpose() * d2 );
 
-  Array<SingleHiddenLayer<N,M,P>::size_> costFuncGrad;
-  // Vec<M> gb1 = d1.rowwise().sum();
-  Mat<M,N> gw1 = d1 * x0.transpose(); // this operation contracts along the axis of different batch data points
-  // Vec<P> gb2 = d2.rowwise().sum();
-  Mat<P,M> gw2 = d2 * x1.transpose();
+  Array<SingleHiddenLayer<N,M,P>::size()> costFuncGrad;
+  // Vec<P> gb1 = d1.rowwise().sum();
+  Mat<P,N> gw1 = d1 * x0.transpose(); // this operation contracts along the axis of different batch data points
+  // Vec<M> gb2 = d2.rowwise().sum();
+  Mat<M,P> gw2 = d2 * x1.transpose();
   // it would be nice to make this procedure more readable:
   costFuncGrad << d1.rowwise().sum() // gb1 // this comes from the bias terms
-    , Map< Vec<M*N> >(gw1.data()) // is this really safe?
+    , Map< Vec<P*N> >(gw1.data()) // is this really safe?
     , d2.rowwise().sum() //gb2
-    , Map< Vec<P*M> >(gw2.data());
+    , Map< Vec<M*P> >(gw2.data());
 
   // normalize by batch size
   costFuncVal /= batchSize;
@@ -182,27 +162,27 @@ costFuncAndGrad(const SingleHiddenLayer<N,M,P>& net, const BatchVec<N>& x0, cons
 }
 
 // we need to be careful w/ this function because it's similar to the version w/ gradient, but stops sooner.
-// a compositional style doesn't work trivially since the backprop needs some intermediate results from this calculation
+// a compositional style of this function inside the one that includes the gradient doesn't work trivially since the backprop needs some intermediate results from this calculation
 template <size_t N, size_t M, size_t P,
 	  RegressionType Reg,
 	  InternalActivator Act>
-double costFunc(const SingleHiddenLayer<N,M,P>& net, const BatchVec<N>& x0, const BatchVec<P>& y) {
+double costFunc(const SingleHiddenLayer<N,M,P>& net, const BatchVec<N>& x0, const BatchVec<M>& y) {
   // we won't do as many checks in this version -- the whole point is to be fast.
   const auto batchSize = x0.cols();
   // propagate forwards
-  Mat<M, N+1> w1 = net.getFirstSynapses(); // don't think there is copying here for a Map object... but we should verify how it actually works.
-  Mat<P, M+1> w2 = net.getSecondSynapses(); // const references shouldn't be necessary for the expression templates to work
+  Mat<P, N+1> w1 = net.getFirstSynapses(); // don't think there is copying here for a Map object... but we should verify how it actually works.
+  Mat<M, P+1> w2 = net.getSecondSynapses(); // const references shouldn't be necessary for the expression templates to work
 
   // a_n should just be temporary expressions
-  BatchVec<M> a1 = w1.template leftCols<1>() * BatchVec<1>::Ones(1,batchSize) // bias terms
+  BatchVec<P> a1 = w1.template leftCols<1>() * BatchVec<1>::Ones(1,batchSize) // bias terms
     + w1.template rightCols<N>() * x0; // weights term
-  BatchVec<M> x1 = ActivFunc<Act>::template activ< BatchArray<M> >(a1.array()).matrix(); // net output of layer 1
-  BatchVec<P> a2 = w2.template leftCols<1>() * BatchVec<1>::Ones(1, batchSize)
-    + w2.template rightCols<M>() * x1;
-  BatchVec<P> x2 = Regressor<Reg>::template outputGate< BatchArray<P> >(a2.array()).matrix();
+  BatchVec<P> x1 = ActivFunc<Act>::template activ< BatchArray<P> >(a1.array()).matrix(); // net output of layer 1
+  BatchVec<M> a2 = w2.template leftCols<1>() * BatchVec<1>::Ones(1, batchSize)
+    + w2.template rightCols<P>() * x1;
+  BatchVec<M> x2 = Regressor<Reg>::template outputGate< BatchArray<M> >(a2.array()).matrix();
 
   // we might return f and gradient together... or maybe we just cache them
-  double costFuncVal = Regressor<Reg>::template costFuncVal< BatchArray<P> >(x2.array(), y.array());
+  double costFuncVal = Regressor<Reg>::template costFuncVal< BatchArray<M> >(x2.array(), y.array());
   costFuncVal /= batchSize;
   return costFuncVal;
 }
@@ -211,19 +191,17 @@ double costFunc(const SingleHiddenLayer<N,M,P>& net, const BatchVec<N>& x0, cons
 template <size_t N, size_t M, size_t P,
 	  RegressionType Reg,
 	  InternalActivator Act>
-Vec<P> getPrediction(const SingleHiddenLayer<N,M,P>& net, const Vec<N>& x0) {
-  // we won't do as many checks in this version -- the whole point is to be fast.
-  // propagate forwards
-  Mat<M, N+1> w1 = net.getFirstSynapses(); // don't think there is copying here for a Map object... but we should verify how it actually works.
-  Mat<P, M+1> w2 = net.getSecondSynapses(); // const references shouldn't be necessary for the expression templates to work
+Vec<M> getPrediction(const SingleHiddenLayer<N,M,P>& net, const Vec<N>& x0) {
+  Mat<P, N+1> w1 = net.getFirstSynapses();
+  Mat<M, P+1> w2 = net.getSecondSynapses();
 
   // a_n should just be temporary expressions
-  Vec<M> a1 = w1.template leftCols<1>() // bias terms
+  Vec<P> a1 = w1.template leftCols<1>() // bias terms
     + w1.template rightCols<N>() * x0; // weights term
-  Vec<M> x1 = ActivFunc<Act>::template activ< Array<M> >(a1.array()).matrix(); // net output of layer 1
-  Vec<P> a2 = w2.template leftCols<1>()
-    + w2.template rightCols<M>() * x1;
-  Vec<P> x2 = Regressor<Reg>::template outputGate< Array<P> >(a2.array()).matrix();
+  Vec<P> x1 = ActivFunc<Act>::template activ< Array<P> >(a1.array()).matrix(); // net output of layer 1
+  Vec<M> a2 = w2.template leftCols<1>()
+    + w2.template rightCols<P>() * x1;
+  Vec<M> x2 = Regressor<Reg>::template outputGate< Array<M> >(a2.array()).matrix();
   return x2;
 }
 
@@ -252,7 +230,7 @@ istream& operator>>(istream& in, SingleHiddenLayer<N, M, P>& me) {
 
 template <size_t N, size_t M, size_t P>
 ostream& operator<<(ostream& out, const SingleHiddenLayer<N, M, P>& me) {
-  for (size_t i=0; i<me.size_; ++i) {
+  for (size_t i=0; i<me.size(); ++i) {
     // we do want to go hexfloat, otherwise we suffer a precision loss
     out << std::hexfloat << me.net_(i) << '\n';// removing newline doesn't work even w/ binary, possibly because of the issue discussed in operatior>>().
   }
