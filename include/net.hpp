@@ -40,7 +40,7 @@ namespace { // protect these definitions locally; don't pollute global namespace
 // we will really want to break this apart (into layers?) and generalize it but first let's get a simple working example.
 // this is a "single hidden layer feedforward network" (SLFN) with 1 output
 // N is input size, M is output layer size, P is the hidden layer size
-template <size_t N, size_t M=1, size_t P=N>
+template <size_t N, size_t M=1, size_t P=(N+M)/2>
 class SingleHiddenLayerStatic
 {
 private:
