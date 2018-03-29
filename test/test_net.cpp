@@ -21,19 +21,22 @@ template <size_t Nin, size_t Nout, size_t Nhid,
 	  RegressionType Reg, InternalActivator Act>
 void check_gradient(SingleHiddenLayerStatic<Nin, Nout, Nhid>& net, const BatchVec<Nin>& xin, const BatchVec<Nout>& yin, double l2reg=0.01, double ep=1e-4, double tol=1e-8) {
   // constexpr size_t Npar = SingleHiddenLayerStatic<Nin, Nout, Nhid>::size_;
-  constexpr size_t Npar = net.size();
-  const Array<Npar> p = net.getNetValue(); // don't make this a reference: the internal data will change!
-  func_grad_res<Npar> fgvals = costFuncAndGrad<Nin, Nout, Nhid, Reg, Act>(net, xin, yin, l2reg); // this must be done before 
+  const/*expr*/ size_t Npar = net.size();
+  const Array</*Npar*/> p = net.getNetValue(); // don't make this a reference: the internal data will change!
+  func_grad_res</*Npar*/> fgvals = costFuncAndGrad<Nin, Nout, Nhid, Reg, Act>(net, xin, yin, l2reg); // this must be done before 
   double fval = fgvals.f; // don't think we actually need this, but it might be a nice check
-  Array<Npar> evalgrad = fgvals.g;
+  Array</*Npar*/> evalgrad = fgvals.g;
 
-  Array<Npar> df;// maybe can do this slickly with colwise() or rowwise() ?
+  BOOST_LOG_TRIVIAL(trace) << "about to try to compute numerical derivative";
+  
+  Array</*Npar*/> df(Npar);// maybe can do this slickly with colwise() or rowwise() ?
   for (size_t i_f=0; i_f<Npar; ++i_f) {
-    Array<Npar> dp = Array<Npar>::Zero();
+    Array</*Npar*/> dp = Array</*Npar*/>::Zero(Npar);
+    BOOST_LOG_TRIVIAL(trace) << "declaring dpi";
     double dpi = ep*sqrt(1.0 + p(i_f)*p(i_f));
     dp(i_f) = dpi;
-    Array<Npar> pplus = p + dp;
-    Array<Npar> pminus = p - dp;
+    Array</*Npar*/> pplus = p + dp;
+    Array</*Npar*/> pminus = p - dp;
     net.accessNetValue() = pplus;
     double fplusi = costFunc<Nin, Nout, Nhid, Reg, Act>(net, xin, yin, l2reg);
     net.accessNetValue() = pminus;
@@ -41,6 +44,8 @@ void check_gradient(SingleHiddenLayerStatic<Nin, Nout, Nhid>& net, const BatchVe
     df(i_f) = (fplusi - fminusi)/(2*dpi);
   }
   
+  BOOST_LOG_TRIVIAL(trace) << "about to check with analytic gradient";
+
   // now check this element-by element
   double sqSumDiff = (df-evalgrad).square().sum();
   if ( sqSumDiff > tol*tol*1
@@ -72,7 +77,7 @@ int main(int, char**) {
   // we can adjust the log level like so:
   namespace logging = boost::log;
   logging::core::get()->set_filter
-    (logging::trivial::severity >= logging::trivial::info);
+    (logging::trivial::severity >= logging::trivial::debug);
   
   SingleHiddenLayerStatic<Nin, Nout, Nh> testNet;
   testNet.randomInit();

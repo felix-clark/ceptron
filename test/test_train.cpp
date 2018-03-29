@@ -13,7 +13,8 @@ namespace {
   // constants for this source only
   constexpr size_t Nin = 16; // there are 18-1 features; 16 bools and 1 int
   constexpr size_t Nout = 7; // there are 7 possible types of animals in this set
-  constexpr size_t Nh = 16; // number of nodes in hidden layer
+  // constexpr size_t Nh = 16; // number of nodes in hidden layer
+  constexpr size_t Nh = 8; // number of nodes in hidden layer
   constexpr RegressionType Reg=RegressionType::Categorical;
   // constexpr InternalActivator Act=InternalActivator::Softplus;
   constexpr InternalActivator Act=InternalActivator::Tanh;
@@ -33,7 +34,6 @@ pair< BatchVec<Nin>, BatchVec<Nout> > readFromFile(string fname="../data/zoo.dat
 string toString(int class_type);
 
 // we'll pre-define a few examples that aren't in the training set
-// pair< Vec<Nin>, Vec<Nout > getTestData(string animal_name);
 Vec<Nin> x_dog();
 Vec<Nin> x_woodpecker();
 Vec<Nin> x_salamander();
@@ -67,10 +67,10 @@ int main(int argc, char** argv) {
   AdaDelta<net_t::size()> minstep; // this is a decent first choice since it is not supposed to depend strongly on hyperparameters
   double l2reg = 0.1;
 
-  BOOST_LOG_TRIVIAL(info) << "pre-training predictions (should just be random):";
-  BOOST_LOG_TRIVIAL(info) << "dog: " << getPrediction<Nin, Nout, Nh, Reg, Act>(net, x_dog()).transpose();
-  BOOST_LOG_TRIVIAL(info) << "woodpecker: " << getPrediction<Nin, Nout, Nh, Reg, Act>(net, x_woodpecker()).transpose();
-  BOOST_LOG_TRIVIAL(info) << "salamander: " << getPrediction<Nin, Nout, Nh, Reg, Act>(net, x_salamander()).transpose();
+  BOOST_LOG_TRIVIAL(debug) << "pre-training predictions (should just be random):";
+  BOOST_LOG_TRIVIAL(debug) << "dog: " << getPrediction<Nin, Nout, Nh, Reg, Act>(net, x_dog()).transpose();
+  BOOST_LOG_TRIVIAL(debug) << "woodpecker: " << getPrediction<Nin, Nout, Nh, Reg, Act>(net, x_woodpecker()).transpose();
+  BOOST_LOG_TRIVIAL(debug) << "salamander: " << getPrediction<Nin, Nout, Nh, Reg, Act>(net, x_salamander()).transpose();
   
   int numEpochs = 320; // AdaDelta trains pretty quickly, and probably starts to overfit. it does do better at categorizing a salamander as an amphibian rather than a reptile if we let it run more.
   for (int i_ep=0; i_ep<numEpochs; ++i_ep) {

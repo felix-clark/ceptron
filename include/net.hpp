@@ -50,7 +50,7 @@ private:
 public:
   constexpr static size_t size() {return size_;}
   SingleHiddenLayerStatic() {randomInit();} // forgetting to randomly initialize can be bad, so we'll do it automatically right now.
-  SingleHiddenLayerStatic(const Array<size_>& ar) {net_=ar;}; // to construct/convert directly from array
+  SingleHiddenLayerStatic(const Array</*size_*/>& ar) {net_=ar;}; // to construct/convert directly from array
   // ~SingleHiddenLayerStatic() {};
   // it is better to scale random initialization by 1/sqrt(n) where n is the number of inputs in a synapse.
   //   this results in a variance of the neuron output that is not dependent on the number of inputs.
@@ -63,8 +63,9 @@ public:
   auto getFirstSynapses() const {return Map< const Mat<P, N+1> >(net_.data());};
   auto getSecondSynapses() const
   {return Map< const Mat<M, P+1> >(net_.template segment<size_w2_>(size_w1_).data());};
-  const Array<size_>& getNetValue() const {return net_.eval();}
-  Array<size_>& accessNetValue() {return net_;} // allows use of in-place operations
+  // const Array<size_>& getNetValue() const {return net_;}
+  const Array<>& getNetValue() const {return net_;}
+  Array<>& accessNetValue() {return net_;} // allows use of in-place operations
 
   bool operator==(const SingleHiddenLayerStatic<N,M,P>& other) const;
   bool operator!=(const SingleHiddenLayerStatic<N,M,P>& other) const {return !(this->operator==(other));}
@@ -82,7 +83,7 @@ public:
   
 private:
   // we could also store these as matrices and map to an array using segment<>
-  Array<size_> net_ = Array<size_>::Zero();
+  Array<> net_ = Array<size_>::Zero(size_);
 };
 
 
@@ -92,7 +93,7 @@ private:
 template <size_t N, size_t M, size_t P,
 	  RegressionType Reg,
 	  InternalActivator Act>
-ceptron::func_grad_res<SingleHiddenLayerStatic<N,M,P>::size()>
+ceptron::func_grad_res</*SingleHiddenLayerStatic<N,M,P>::size()*/>
 costFuncAndGrad(const SingleHiddenLayerStatic<N,M,P>& net, const BatchVec<N>& x0, const BatchVec<M>& y, double l2reg = 0.0) {
   const auto batchSize = x0.cols();
   assert( batchSize == y.cols() );

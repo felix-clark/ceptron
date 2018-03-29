@@ -5,14 +5,14 @@ namespace ceptron {
 
   template <int M, int N>
   using Mat = Eigen::Matrix<double, M, N>;
-  template <int M>
+  template <int M=Eigen::Dynamic>
   using Vec = Mat<M, 1>;
-  template <int M>
+  template <int M=Eigen::Dynamic>
   using BatchVec = Eigen::Matrix<double, M, Eigen::Dynamic>;
   
-  template <int M> // don't think we need anything but column arrays
+  template <int M=Eigen::Dynamic> // don't think we need anything but column arrays
   using Array = Eigen::Array<double, M, 1>;
-  template <int M> // we might use this type explicitly for element-wise computations
+  template <int M=Eigen::Dynamic> // we might use this type explicitly for element-wise computations
   using BatchArray = Eigen::Array<double, M, Eigen::Dynamic>;
 
   using Eigen::Map;
