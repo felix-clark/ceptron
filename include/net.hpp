@@ -43,19 +43,24 @@ namespace { // protect these definitions locally; don't pollute global namespace
 template <size_t N, size_t M=1, size_t P=(N+M)/2>
 class SingleHiddenLayerStatic
 {
+public:
+  static constexpr size_t inputs = N;
+  static constexpr size_t outputs = M;
+  static constexpr size_t hiddens = P; // this member won't generalize well, so we should replace typedefs for 1st, 2nd layer matrix types, for instance
 private:
   static constexpr size_t size_w1_ = P*(N+1); // first layer
   static constexpr size_t size_w2_ = M*(P+1); // output layer
-  static constexpr size_t size_ = size_w1_ + size_w2_; // total size of data required to store net
+  // static constexpr size_t size_ = size_w1_ + size_w2_; // total size of data required to store net
 public:
-  constexpr static size_t size() {return size_;}
+  constexpr static size_t size = size_w1_ + size_w2_;
+  // constexpr static size_t size() {return size_;}
   SingleHiddenLayerStatic() {randomInit();} // forgetting to randomly initialize can be bad, so we'll do it automatically right now.
   SingleHiddenLayerStatic(const Array</*size_*/>& ar) {net_=ar;}; // to construct/convert directly from array
   // ~SingleHiddenLayerStatic() {};
   // it is better to scale random initialization by 1/sqrt(n) where n is the number of inputs in a synapse.
   //   this results in a variance of the neuron output that is not dependent on the number of inputs.
   //   dividing by the total size is just a rough approximation
-  void randomInit() {net_ = (1./size_)*Array<size_>::Random();};
+  void randomInit() {net_ = (1./size)*Array<size>::Random();};
   // this could be useful for indicating which data elements are most relevant.
   Array<N> getInputLayerActivation(const Vec<N>& in) const; // returns activation from single input. these will no longer be cached
   Array<P> getHiddenLayerActivation(const Vec<N>& in) const; // they don't actually need to be member functions
@@ -83,21 +88,30 @@ public:
   
 private:
   // we could also store these as matrices and map to an array using segment<>
-  Array<> net_ = Array<size_>::Zero(size_);
+  Array<> net_ = Array<size>::Zero(size);
 };
 
 
 // we should be able to build up multi-layer networks by having each layer work as its own and having their forward and backward propagations interact with each other
 
 
-template <size_t N, size_t M, size_t P,
+// template <size_t N, size_t M, size_t P,
+// 	  RegressionType Reg,
+// 	  InternalActivator Act>
+// ceptron::func_grad_res</*SingleHiddenLayerStatic<N,M,P>::size()*/>
+// costFuncAndGrad(const SingleHiddenLayerStatic<N,M,P>& net, const BatchVec<N>& x0, const BatchVec<M>& y, double l2reg = 0.0) {
+template <typename Net,
 	  RegressionType Reg,
 	  InternalActivator Act>
-ceptron::func_grad_res</*SingleHiddenLayerStatic<N,M,P>::size()*/>
-costFuncAndGrad(const SingleHiddenLayerStatic<N,M,P>& net, const BatchVec<N>& x0, const BatchVec<M>& y, double l2reg = 0.0) {
+ceptron::func_grad_res<>
+costFuncAndGrad(const Net& net, const BatchVec<Net::inputs>& x0, const BatchVec<Net::outputs>& y, double l2reg = 0.0) {
   const auto batchSize = x0.cols();
   assert( batchSize == y.cols() );
 
+  constexpr size_t N = Net::inputs;
+  constexpr size_t M = Net::outputs;
+  constexpr size_t P = Net::hiddens;
+  
   if (Reg == RegressionType::Categorical) {
     // this if statement should be optimized away at compile-time
     if ((y.colwise().sum().array() > 1.0).any()) {
@@ -110,6 +124,7 @@ costFuncAndGrad(const SingleHiddenLayerStatic<N,M,P>& net, const BatchVec<N>& x0
   
   // propagate forwards
   // it may be simpler to split into weights and biases
+  // these matrix types should be typedefs in Net
   Mat<P, N+1> w1 = net.getFirstSynapses(); // don't think there is copying here for a Map object... but we should verify how it actually works.
   Mat<M, P+1> w2 = net.getSecondSynapses(); // const references shouldn't be necessary for the expression templates to work
 
@@ -147,7 +162,8 @@ costFuncAndGrad(const SingleHiddenLayerStatic<N,M,P>& net, const BatchVec<N>& x0
   BatchVec<P> e1 = ActivFunc<Act>::template activToD< BatchArray<P> >(x1.array()).matrix();
   BatchVec<P> d1 = e1.cwiseProduct( (w2.template rightCols<P>()).transpose() * d2 );
 
-  Array<SingleHiddenLayerStatic<N,M,P>::size()> costFuncGrad;
+  // Array<SingleHiddenLayerStatic<N,M,P>::size()> costFuncGrad;
+  Array<Net::size> costFuncGrad;
   // Vec<P> gb1 = d1.rowwise().sum(); // this operation contracts along the axis of different batch data points
   Mat<P,N> gw1 = d1 * x0.transpose() + 2.0*l2reg*w1.template rightCols<N>(); // add regularization term
   // Vec<M> gb2 = d2.rowwise().sum();
@@ -166,10 +182,19 @@ costFuncAndGrad(const SingleHiddenLayerStatic<N,M,P>& net, const BatchVec<N>& x0
 
 // we need to be careful w/ this function because it's similar to the version w/ gradient, but stops sooner.
 // a compositional style of this function inside the one that includes the gradient doesn't work trivially since the backprop needs some intermediate results from this calculation
-template <size_t N, size_t M, size_t P,
+// template <size_t N, size_t M, size_t P,
+// 	  RegressionType Reg,
+// 	  InternalActivator Act>
+// double costFunc(const SingleHiddenLayerStatic<N,M,P>& net, const BatchVec<N>& x0, const BatchVec<M>& y, double l2reg = 0.0) {
+template <typename Net,
 	  RegressionType Reg,
 	  InternalActivator Act>
-double costFunc(const SingleHiddenLayerStatic<N,M,P>& net, const BatchVec<N>& x0, const BatchVec<M>& y, double l2reg = 0.0) {
+double costFunc(const Net& net, const BatchVec<Net::inputs>& x0, const BatchVec<Net::outputs>& y, double l2reg = 0.0) {
+
+  constexpr size_t N = Net::inputs;
+  constexpr size_t M = Net::outputs;
+  constexpr size_t P = Net::hiddens;
+  
   // we won't do as many checks in this version -- the whole point is to be fast.
   const auto batchSize = x0.cols();
   // propagate forwards
@@ -195,10 +220,15 @@ double costFunc(const SingleHiddenLayerStatic<N,M,P>& net, const BatchVec<N>& x0
 }
 
 // this returns a prediction for a single data point x0
-template <size_t N, size_t M, size_t P,
+template <typename Net,
 	  RegressionType Reg,
 	  InternalActivator Act>
-Vec<M> getPrediction(const SingleHiddenLayerStatic<N,M,P>& net, const Vec<N>& x0) {
+Vec<Net::outputs> getPrediction(const Net& net, const Vec<Net::inputs>& x0) {
+  constexpr size_t N = Net::inputs;
+  constexpr size_t M = Net::outputs;
+  constexpr size_t P = Net::hiddens;
+
+  // again, these typedefs should come out of Net, not N, M, and P
   Mat<P, N+1> w1 = net.getFirstSynapses();
   Mat<M, P+1> w2 = net.getSecondSynapses();
 
@@ -216,7 +246,7 @@ Vec<M> getPrediction(const SingleHiddenLayerStatic<N,M,P>& net, const Vec<N>& x0
 }
 
 
-template <size_t N, size_t M, size_t P>	  
+template <size_t N, size_t M, size_t P>
 bool SingleHiddenLayerStatic<N,M,P>::operator==(const SingleHiddenLayerStatic<N,M,P>& other) const {
   return (this->net_ == other.net_).all();
 }
@@ -225,7 +255,7 @@ template <size_t N, size_t M, size_t P>
 istream& operator>>(istream& in, SingleHiddenLayerStatic<N, M, P>& me) {
   // TODO: some metadata at the top would be nice for verification
   // let's wait until we have a more general setup (e.g. multilayer) before we worry about that.
-  for (size_t i=0; i<me.size_; ++i) {
+  for (size_t i=0; i<me.size; ++i) {
     // the fact that this one line doesn't work is actually either a bug in g++ or a flaw in the standards.
     // it may be fixed in C++ 17 but g++ isn't there yet.
     // in >> std::hexfloat >> me.net_(i);    
@@ -240,7 +270,7 @@ istream& operator>>(istream& in, SingleHiddenLayerStatic<N, M, P>& me) {
 
 template <size_t N, size_t M, size_t P>
 ostream& operator<<(ostream& out, const SingleHiddenLayerStatic<N, M, P>& me) {
-  for (size_t i=0; i<me.size(); ++i) {
+  for (size_t i=0; i<me.size; ++i) {
     // we do want to go hexfloat, otherwise we suffer a precision loss
     out << std::hexfloat << me.net_(i) << '\n';// removing newline doesn't work even w/ binary, possibly because of the issue discussed in operatior>>().
   }

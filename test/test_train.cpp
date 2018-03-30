@@ -57,38 +57,38 @@ int main(int argc, char** argv) {
 
   // since this dataset is rather small, we'll do full batch gradient descent directly.
 
-  using net_t = SingleHiddenLayerStatic<Nin, Nout, Nh>;
-  net_t net;
+  using Net = SingleHiddenLayerStatic<Nin, Nout, Nh>;
+  Net net;
   net.randomInit(); // should be done by default now, but just to be explicit we'll re-do it here.
   // from a programming perspective it seems preferable to not initialize to random variables, but we have to make sure to remember to randomize every time.
-  BOOST_LOG_TRIVIAL(info) << "parameter space has dimension " << net_t::size();
-  // GradientDescent<net_t::size()> minstep; // this could be a choice of a different minimizer
-  // AcceleratedGradient<net_t::size()> minstep;
-  AdaDelta<net_t::size()> minstep; // this is a decent first choice since it is not supposed to depend strongly on hyperparameters
+  BOOST_LOG_TRIVIAL(info) << "parameter space has dimension " << Net::size;
+  // GradientDescent<Net::size> minstep; // this could be a choice of a different minimizer
+  // AcceleratedGradient<Net::size> minstep;
+  AdaDelta<Net::size> minstep; // this is a decent first choice since it is not supposed to depend strongly on hyperparameters
   double l2reg = 0.1;
 
   BOOST_LOG_TRIVIAL(debug) << "pre-training predictions (should just be random):";
-  BOOST_LOG_TRIVIAL(debug) << "dog: " << getPrediction<Nin, Nout, Nh, Reg, Act>(net, x_dog()).transpose();
-  BOOST_LOG_TRIVIAL(debug) << "woodpecker: " << getPrediction<Nin, Nout, Nh, Reg, Act>(net, x_woodpecker()).transpose();
-  BOOST_LOG_TRIVIAL(debug) << "salamander: " << getPrediction<Nin, Nout, Nh, Reg, Act>(net, x_salamander()).transpose();
+  BOOST_LOG_TRIVIAL(debug) << "dog: " << getPrediction<Net, Reg, Act>(net, x_dog()).transpose();
+  BOOST_LOG_TRIVIAL(debug) << "woodpecker: " << getPrediction<Net, Reg, Act>(net, x_woodpecker()).transpose();
+  BOOST_LOG_TRIVIAL(debug) << "salamander: " << getPrediction<Net, Reg, Act>(net, x_salamander()).transpose();
   
   int numEpochs = 320; // AdaDelta trains pretty quickly, and probably starts to overfit. it does do better at categorizing a salamander as an amphibian rather than a reptile if we let it run more.
   for (int i_ep=0; i_ep<numEpochs; ++i_ep) {
     if (i_ep % 64 == 0) {
       BOOST_LOG_TRIVIAL(info) << "beginning " << i_ep << "th epoch";
-      BOOST_LOG_TRIVIAL(info) << "cost function: " << costFunc<Nin, Nout, Nh, Reg, Act>(net, xb, yb, l2reg);
+      BOOST_LOG_TRIVIAL(info) << "cost function: " << costFunc<Net, Reg, Act>(net, xb, yb, l2reg);
       BOOST_LOG_TRIVIAL(debug) << "mid-training predictions:";
-      BOOST_LOG_TRIVIAL(debug) << "dog: " << getPrediction<Nin, Nout, Nh, Reg, Act>(net, x_dog()).transpose();
-      BOOST_LOG_TRIVIAL(debug) << "woodpecker: " << getPrediction<Nin, Nout, Nh, Reg, Act>(net, x_woodpecker()).transpose();
-      BOOST_LOG_TRIVIAL(debug) << "salamander: " << getPrediction<Nin, Nout, Nh, Reg, Act>(net, x_salamander()).transpose();
+      BOOST_LOG_TRIVIAL(debug) << "dog: " << getPrediction<Net, Reg, Act>(net, x_dog()).transpose();
+      BOOST_LOG_TRIVIAL(debug) << "woodpecker: " << getPrediction<Net, Reg, Act>(net, x_woodpecker()).transpose();
+      BOOST_LOG_TRIVIAL(debug) << "salamander: " << getPrediction<Net, Reg, Act>(net, x_salamander()).transpose();
     }
-    trainSlfnStatic<Nin, Nout, Nh, Reg, Act>( net, minstep, xb, yb, l2reg );
+    trainSlfnStatic<Net, Reg, Act>( net, minstep, xb, yb, l2reg );
   }
 
   BOOST_LOG_TRIVIAL(info) << "post-training predictions:";
-  BOOST_LOG_TRIVIAL(info) << "dog: " << getPrediction<Nin, Nout, Nh, Reg, Act>(net, x_dog()).transpose();
-  BOOST_LOG_TRIVIAL(info) << "woodpecker: " << getPrediction<Nin, Nout, Nh, Reg, Act>(net, x_woodpecker()).transpose();
-  BOOST_LOG_TRIVIAL(info) << "salamander: " << getPrediction<Nin, Nout, Nh, Reg, Act>(net, x_salamander()).transpose();
+  BOOST_LOG_TRIVIAL(info) << "dog: " << getPrediction<Net, Reg, Act>(net, x_dog()).transpose();
+  BOOST_LOG_TRIVIAL(info) << "woodpecker: " << getPrediction<Net, Reg, Act>(net, x_woodpecker()).transpose();
+  BOOST_LOG_TRIVIAL(info) << "salamander: " << getPrediction<Net, Reg, Act>(net, x_salamander()).transpose();
   
   return 0;
 }
