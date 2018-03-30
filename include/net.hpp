@@ -20,7 +20,6 @@ namespace { // protect these definitions locally; don't pollute global namespace
 // an interface class for NNs that takes only number of inputs and number of outputs.
 // we could probably use a better name for  this
 // we want the batch size to be dynamic so as to not incur difficult constraints on the input data. for large network sizes, compile-time constants won't actually help (and may in some cases hurt), so we'll use a different interface for large nets (dimension >~ 32)
-// we can't blindly plug in -1 for dynamic, because in some cases we use N+1 to include a bias term. a dynamic network will probably use a generic dynamic interface.
 // template <size_t Nin, size_t Nout, size_t Ntot>
 // class ISmallFeedForward
 // {
@@ -78,17 +77,46 @@ public:
   // using stream operators is not the most precise or efficient way to store doubles.
   // we'll save/load as binary, and there are better ways to do so directly.
   // overload streaming operators for input/output
-  // not re-doing this template declaration leads to warnings. we might be fine without it, however.
-  template<size_t Nf, size_t Mf, size_t Pf>
-  friend istream& operator>>(istream& in, SingleHiddenLayerStatic<Nf, Mf, Pf>& me);
-  template<size_t Nf, size_t Mf, size_t Pf>
-  friend ostream& operator<<(ostream& out, const SingleHiddenLayerStatic<Nf, Mf, Pf>& me);
+
+  // defining this in the class template is annoying but it allows us to avoid introducing
+  //  another layer of template parameters. known as the "making new friends" idiom.
+  friend istream& operator>> (istream& in, SingleHiddenLayerStatic<N, M, P>& me) {
+    // TODO: some metadata at the top would be nice for verification
+    // let's wait until we have a more general setup (e.g. multilayer) before we worry about that.
+    for (size_t i=0; i<me.size; ++i) {
+      // the fact that this one line doesn't work is actually either a bug in g++ or a flaw in the standards.
+      // it may be fixed in C++ 17 but g++ isn't there yet.
+      // in >> std::hexfloat >> me.net_(i);
+      // see: https://stackoverflow.com/questions/42604596/read-and-write-using-stdhexfloat
+      //  for link to discussion as well as this workaround suggestion:
+      std::string s;
+      in >> std::hexfloat >> s;
+      me.net_(i) = std::strtod(s.data(), nullptr);
+    }
+    return in;
+  }
+  friend ostream& operator<<(ostream& out, const SingleHiddenLayerStatic<N, M, P>& me) {
+    for (size_t i=0; i<me.size; ++i) {
+      // we do want to go hexfloat, otherwise we suffer a precision loss
+      // removing newline doesn't work even w/ binary, possibly because of the issue discussed in operatior>>().
+      out << std::hexfloat << me.net_(i) << '\n';
+    }
+    return out;
+  }
+
+
+
   void toFile(const std::string& fname) const;
   void fromFile(const std::string& fname);
   
 private:
   // we could also store these as matrices and map to an array using segment<>
   Array<> net_ = Array<size>::Zero(size);
+  // by specifying the maximum size at compile-time we could allow some optimizations, but it may not matter much since the array shouldn't be changing size anyway
+  // this changes the return type though, and it's probably easiest to just let the parameter array be a default dynamic array right now
+  // Eigen::Array<double, Eigen::Dynamic, 1,
+  // 	       0, // default of 0 goes to column-major and auto-align
+  // 	       size, 1> net_ = Array<size>::Zero(size);
 };
 
 
@@ -232,16 +260,13 @@ Vec<Net::outputs> getPrediction(const Net& net, const Vec<Net::inputs>& x0) {
   Mat<P, N+1> w1 = net.getFirstSynapses();
   Mat<M, P+1> w2 = net.getSecondSynapses();
 
-  // BOOST_LOG_TRIVIAL( trace ) << "x0: " << x0.transpose();
   // a_n should just be temporary expressions
   Vec<P> a1 = w1.template leftCols<1>() // bias terms
     + w1.template rightCols<N>() * x0; // weights term
   Vec<P> x1 = ActivFunc<Act>::template activ< Array<P> >(a1.array()).matrix(); // net output of layer 1
-  // BOOST_LOG_TRIVIAL( trace ) << "x1: " << x1.transpose();
   Vec<M> a2 = w2.template leftCols<1>()
     + w2.template rightCols<P>() * x1;
   Vec<M> x2 = Regressor<Reg>::template outputGate< Array<M> >(a2.array()).matrix();
-  // BOOST_LOG_TRIVIAL( trace ) << "x2: " << x2.transpose();
   return x2;
 }
 
@@ -249,32 +274,6 @@ Vec<Net::outputs> getPrediction(const Net& net, const Vec<Net::inputs>& x0) {
 template <size_t N, size_t M, size_t P>
 bool SingleHiddenLayerStatic<N,M,P>::operator==(const SingleHiddenLayerStatic<N,M,P>& other) const {
   return (this->net_ == other.net_).all();
-}
-
-template <size_t N, size_t M, size_t P>
-istream& operator>>(istream& in, SingleHiddenLayerStatic<N, M, P>& me) {
-  // TODO: some metadata at the top would be nice for verification
-  // let's wait until we have a more general setup (e.g. multilayer) before we worry about that.
-  for (size_t i=0; i<me.size; ++i) {
-    // the fact that this one line doesn't work is actually either a bug in g++ or a flaw in the standards.
-    // it may be fixed in C++ 17 but g++ isn't there yet.
-    // in >> std::hexfloat >> me.net_(i);    
-    // see: https://stackoverflow.com/questions/42604596/read-and-write-using-stdhexfloat for link to discussion as well as this workaround suggestion.
-    
-    std::string s;
-    in >> std::hexfloat >> s;
-    me.net_(i) = std::strtod(s.data(), nullptr);
-  }
-  return in;
-}
-
-template <size_t N, size_t M, size_t P>
-ostream& operator<<(ostream& out, const SingleHiddenLayerStatic<N, M, P>& me) {
-  for (size_t i=0; i<me.size; ++i) {
-    // we do want to go hexfloat, otherwise we suffer a precision loss
-    out << std::hexfloat << me.net_(i) << '\n';// removing newline doesn't work even w/ binary, possibly because of the issue discussed in operatior>>().
-  }
-  return out;
 }
 
 
