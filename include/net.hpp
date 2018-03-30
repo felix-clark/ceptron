@@ -56,10 +56,7 @@ public:
   SingleHiddenLayerStatic() {randomInit();} // forgetting to randomly initialize can be bad, so we'll do it automatically right now.
   SingleHiddenLayerStatic(const Array</*size_*/>& ar) {net_=ar;}; // to construct/convert directly from array
   // ~SingleHiddenLayerStatic() {};
-  // it is better to scale random initialization by 1/sqrt(n) where n is the number of inputs in a synapse.
-  //   this results in a variance of the neuron output that is not dependent on the number of inputs.
-  //   dividing by the total size is just a rough approximation
-  void randomInit() {net_ = (1./size)*Array<size>::Random();};
+  void randomInit();
   // this could be useful for indicating which data elements are most relevant.
   Array<N> getInputLayerActivation(const Vec<N>& in) const; // returns activation from single input. these will no longer be cached
   Array<P> getHiddenLayerActivation(const Vec<N>& in) const; // they don't actually need to be member functions
@@ -74,10 +71,20 @@ public:
   bool operator==(const SingleHiddenLayerStatic<N,M,P>& other) const;
   bool operator!=(const SingleHiddenLayerStatic<N,M,P>& other) const {return !(this->operator==(other));}
 
-  // using stream operators is not the most precise or efficient way to store doubles.
-  // we'll save/load as binary, and there are better ways to do so directly.
-  // overload streaming operators for input/output
+  void toFile(const std::string& fname) const;
+  void fromFile(const std::string& fname);
+  
+private:
+  // we could also store these as matrices and map to an array using segment<>
+  Array<> net_ = Array<size>::Zero(size);
+  // by specifying the maximum size at compile-time we could allow some optimizations, but it may not matter much since the array shouldn't be changing size anyway
+  // this changes the return type though, and it's probably easiest to just let the parameter array be a default dynamic array right now
+  // Eigen::Array<double, Eigen::Dynamic, 1,
+  // 	       0, // default of 0 goes to column-major and auto-align
+  // 	       size, 1> net_ = Array<size>::Zero(size);
 
+public:
+  // define stream operators here at the end
   // defining this in the class template is annoying but it allows us to avoid introducing
   //  another layer of template parameters. known as the "making new friends" idiom.
   friend istream& operator>> (istream& in, SingleHiddenLayerStatic<N, M, P>& me) {
@@ -104,20 +111,18 @@ public:
     return out;
   }
 
-
-
-  void toFile(const std::string& fname) const;
-  void fromFile(const std::string& fname);
-  
-private:
-  // we could also store these as matrices and map to an array using segment<>
-  Array<> net_ = Array<size>::Zero(size);
-  // by specifying the maximum size at compile-time we could allow some optimizations, but it may not matter much since the array shouldn't be changing size anyway
-  // this changes the return type though, and it's probably easiest to just let the parameter array be a default dynamic array right now
-  // Eigen::Array<double, Eigen::Dynamic, 1,
-  // 	       0, // default of 0 goes to column-major and auto-align
-  // 	       size, 1> net_ = Array<size>::Zero(size);
 };
+
+
+template <size_t N, size_t M, size_t P>
+void SingleHiddenLayerStatic<N,M,P>::randomInit() {
+  // it is better to scale random initialization by 1/sqrt(n) where n is the number of inputs in a synapse.
+  //   this results in a variance of the neuron output that is not dependent on the number of inputs.
+  //   dividing by the total size is just a rough approximation
+  // We also only want to randomize the weights -- the initial biases should be kept at zero.
+  // TODO
+  net_ = (1./size)*Array<size>::Random();
+}
 
 
 // we should be able to build up multi-layer networks by having each layer work as its own and having their forward and backward propagations interact with each other
