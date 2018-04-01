@@ -66,6 +66,8 @@ void check_gradient(Net& net, const BatchVec<Net::inputs>& xin, const BatchVec<N
 
 int main(int, char**) {
 
+  // to speed up compilation we can disable the static tests while we develop the dynamic case
+#ifndef NOSTATIC
   constexpr size_t Nin = 8;
   constexpr size_t Nout = 4;
   constexpr size_t Nh = 6; // number of nodes in hidden layer
@@ -135,6 +137,10 @@ int main(int, char**) {
     auto diff = testNet.getNetValue() - netCopy.getNetValue();
     BOOST_LOG_TRIVIAL(warning) << "difference:\n" << diff.transpose().format(my_fmt);
   }
+
+#else
+  BOOST_LOG_TRIVIAL(info) << "skipping static nets.";
+#endif // ifndef NO_STATIC
   
   return 0;
 }

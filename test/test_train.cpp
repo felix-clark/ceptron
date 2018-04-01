@@ -48,6 +48,9 @@ int main(int argc, char** argv) {
     return 1;
   }
   string datafile = argv[1];
+
+#ifndef NOSTATIC
+  
   auto datapair = readFromFile(datafile);
   BatchVec<Nin> xb = datapair.first;
   BatchVec<Nout> yb = datapair.second;
@@ -89,6 +92,10 @@ int main(int argc, char** argv) {
   BOOST_LOG_TRIVIAL(info) << "dog: " << getPrediction<Net, Reg, Act>(net, x_dog()).transpose();
   BOOST_LOG_TRIVIAL(info) << "woodpecker: " << getPrediction<Net, Reg, Act>(net, x_woodpecker()).transpose();
   BOOST_LOG_TRIVIAL(info) << "salamander: " << getPrediction<Net, Reg, Act>(net, x_salamander()).transpose();
+
+#else
+  BOOST_LOG_TRIVIAL(info) << "Skipping static nets.";
+#endif // NOSTATIC
   
   return 0;
 }

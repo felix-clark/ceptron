@@ -44,6 +44,7 @@ file(GLOB SOURCES src/*.cpp)
 set(MY_DEBUG_OPTIONS -g -O0 -Wall -Wextra -pedantic)
 set(MY_RELEASE_OPTIONS -O3 -Wall -Wextra -pedantic)
 
+# we can add compile definitions for all targets at once with add_definitions(-DNOSTATIC)
 
 # define our library (which is currently mostly in headers, but implementations of larger nets will not be so templated)
 add_library(ceptron ${SOURCES})
@@ -63,6 +64,7 @@ foreach(_TESTSRC ${TESTSRCS})
   message( STATUS ${_TESTOUT} )
   add_executable(${_TESTOUT} ${_TESTSRC})
   target_link_libraries(${_TESTOUT} ceptron)
+  target_compile_definitions(${_TESTOUT} PRIVATE NOSTATIC) # turn off the static template testers right now just for speed
 endforeach()
 
 
