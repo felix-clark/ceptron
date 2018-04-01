@@ -11,6 +11,9 @@ namespace {
   
 } // namespace
 
+class Layer;
+class OutputLayer;
+
 // a runtime-sized feedforward network
 class FfnDyn
 {
@@ -27,14 +30,6 @@ private:
   std::vector<Layer> layers_;
 };
 
-/// move these defs to a cpp source file once we get off the ground
-FfnDyn::FfnDyn(size_t ins, size_t outs)
-  : size_(outs*(ins+1))
-  , net_(size_)
-{
-  layers_.push_back(Layer(ins, outs, InternalActivator::Tanh, net_));
-}
-
 
 // these layers should possibly all be non-exposed classes used only by the network
 class Layer
@@ -50,19 +45,31 @@ private:
 };
 
 Layer::Layer(size_t ins, size_t outs, InternalActivator act, Eigen::Ref<ArrayX> data)
-  : act_(act)
-  , bias_(data.data(), outs)
+  :bias_(data.data(), outs)
   , weights_(data.segment(outs, ins*outs).data(), outs, ins)
+  , act_(act)
 {
     
 }
 
 // perhaps this shouldn't be a separate class and we should combine internal activators w/ output ones.
 //  output layers may need only a single additional function for summing up the cost function
+//  possibly this can inherit from the regular layer
 class OutputLayer
 {
 public:
   OutputLayer(size_t ins, size_t outs, RegressionType reg);
   ~OutputLayer() = default;
 private:
+};
+
+
+
+/// move these defs to a cpp source file once we get off the ground
+FfnDyn::FfnDyn(size_t ins, size_t outs)
+  : size_(outs*(ins+1))
+  , net_(size_)
+{
+  layers_.push_back(Layer(ins, outs, InternalActivator::Tanh, net_));
 }
+

@@ -1,5 +1,6 @@
 #include "global.hpp"
 #include "net.hpp"
+#include "net_dyn.hpp"
 #include <boost/log/core.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/log/expressions.hpp>
@@ -65,9 +66,6 @@ void check_gradient(Net& net, const BatchVec<Net::inputs>& xin, const BatchVec<N
 }
 
 int main(int, char**) {
-
-  // to speed up compilation we can disable the static tests while we develop the dynamic case
-#ifndef NOSTATIC
   constexpr size_t Nin = 8;
   constexpr size_t Nout = 4;
   constexpr size_t Nh = 6; // number of nodes in hidden layer
@@ -79,6 +77,11 @@ int main(int, char**) {
   // constexpr InternalActivator Act=InternalActivator::LReLU;
   constexpr InternalActivator Act=InternalActivator::Softplus;
   constexpr int batchSize = 16;
+
+  FfnDyn netd(Nin, Nout);
+  
+  // to speed up compilation we can disable the static tests while we develop the dynamic case
+#ifndef NOSTATIC
 
   // defines the architecture of our test NN
   using Net = SingleHiddenLayerStatic<Nin, Nout, Nh>;
