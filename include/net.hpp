@@ -128,11 +128,6 @@ void SingleHiddenLayerStatic<N,M,P>::randomInit() {
 // we should be able to build up multi-layer networks by having each layer work as its own and having their forward and backward propagations interact with each other
 
 
-// template <size_t N, size_t M, size_t P,
-// 	  RegressionType Reg,
-// 	  InternalActivator Act>
-// ceptron::func_grad_res</*SingleHiddenLayerStatic<N,M,P>::size()*/>
-// costFuncAndGrad(const SingleHiddenLayerStatic<N,M,P>& net, const BatchVec<N>& x0, const BatchVec<M>& y, double l2reg = 0.0) {
 template <typename Net,
 	  RegressionType Reg,
 	  InternalActivator Act>
@@ -215,10 +210,6 @@ costFuncAndGrad(const Net& net, const BatchVec<Net::inputs>& x0, const BatchVec<
 
 // we need to be careful w/ this function because it's similar to the version w/ gradient, but stops sooner.
 // a compositional style of this function inside the one that includes the gradient doesn't work trivially since the backprop needs some intermediate results from this calculation
-// template <size_t N, size_t M, size_t P,
-// 	  RegressionType Reg,
-// 	  InternalActivator Act>
-// double costFunc(const SingleHiddenLayerStatic<N,M,P>& net, const BatchVec<N>& x0, const BatchVec<M>& y, double l2reg = 0.0) {
 template <typename Net,
 	  RegressionType Reg,
 	  InternalActivator Act>
