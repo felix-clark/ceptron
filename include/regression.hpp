@@ -9,7 +9,7 @@
 //   using Array = ceptron::Array<N>;
 // }
 
-enum class RegressionType {Categorical, LeastSquares};
+enum class RegressionType {Categorical, LeastSquares, Poisson};
 // "Categorical" means "exclusive categorical", meaning |y| <= 1 and an implied "none" category is used for |y| < 1.
 // an input is meant 
 // for non-exclusive classification, independent NNs can be used.
@@ -43,6 +43,17 @@ double Regressor<RegressionType::LeastSquares>::costFuncVal(const ArrT& xout, co
 
 template <>
 template <typename ArrT>
+double Regressor<RegressionType::Poisson>::costFuncVal(const ArrT& xout, const ArrT& yin) {
+  // the convention in ML is to divide by factor of 2.
+  // also makes backprop have same factors.
+  // max likelihood of gaussian w/ variance 1
+  //  note we also did not multiply by the factor of 2 in log-likelihood for categorical, as is convention in physics.
+  return  (xout - yin*log(xout)).sum();
+}
+
+
+template <>
+template <typename ArrT>
 ArrT Regressor<RegressionType::Categorical>::outputGate(const ArrT& aout) {
   using Eigen::exp;
   ArrT expvals = exp(aout).eval();
@@ -56,6 +67,13 @@ template <typename ArrT>
 ArrT Regressor<RegressionType::LeastSquares>::outputGate(const ArrT& aout) {
   // for a least-squares cost function, we need the output gate to be the identity in order to make backprop work the same way
   return aout;
+}
+
+template <>
+template <typename ArrT>
+ArrT Regressor<RegressionType::Poisson>::outputGate(const ArrT& aout) {
+  // for poisson regression, the lambda parameter is typically an exponential of the gate value, which makes the value positive
+  return exp(aout);
 }
 
 
