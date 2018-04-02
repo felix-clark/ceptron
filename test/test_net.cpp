@@ -69,10 +69,11 @@ int main(int, char**) {
   constexpr size_t Nin = 8;
   constexpr size_t Nout = 4;
   constexpr size_t Nh = 6; // number of nodes in hidden layer
-  constexpr RegressionType Reg=RegressionType::Categorical;
-  // constexpr RegressionType Reg=RegressionType::LeastSquares;
+  // constexpr RegressionType Reg=RegressionType::Categorical;
+  constexpr RegressionType Reg=RegressionType::LeastSquares;
+  // constexpr RegressionType Reg=RegressionType::Poisson;
   // constexpr InternalActivator Act=InternalActivator::Tanh;
-  // constexpr InternalActivator Act=InternalActivator::ReLU; // we had gradient issues w/ this because we were overriding it accidentally
+  // constexpr InternalActivator Act=InternalActivator::ReLU; // we had gradient issues w/ ReLU because we were overriding it accidentally
   // however the nested select() to attempt to check for x=0 screws up the gradient completely
   // constexpr InternalActivator Act=InternalActivator::LReLU;
   constexpr InternalActivator Act=InternalActivator::Softplus;
@@ -84,7 +85,7 @@ int main(int, char**) {
 #ifndef NOSTATIC
 
   // defines the architecture of our test NN
-  using Net = SingleHiddenLayerStatic<Nin, Nout, Nh>;
+  using Net = SlfnStatic<Nin, Nout, Nh>;
   
   // we can adjust the log level like so:
   namespace logging = boost::log;

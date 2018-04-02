@@ -37,6 +37,7 @@ class Layer
 public:
   Layer(size_t ins, size_t outs, InternalActivator act, Eigen::Ref<ArrayX> data);
   ~Layer() = default;
+  
 private:
   // should the data be held externally, or should this have its own
   Map<VecX> bias_;
