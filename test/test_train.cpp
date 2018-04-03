@@ -60,7 +60,7 @@ int main(int argc, char** argv) {
 
   // since this dataset is rather small, we'll do full batch gradient descent directly.
 
-  using Net = SingleHiddenLayerStatic<Nin, Nout, Nh>;
+  using Net = SlfnStatic<Nin, Nout, Nh>;
   Net net;
   net.randomInit(); // should be done by default now, but just to be explicit we'll re-do it here.
   // from a programming perspective it seems preferable to not initialize to random variables, but we have to make sure to remember to randomize every time.
