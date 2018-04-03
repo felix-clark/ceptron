@@ -17,30 +17,13 @@ namespace { // protect these definitions locally; don't pollute global namespace
   using std::ios;
 }
 
-// an interface class for NNs that takes only number of inputs and number of outputs.
-// we could probably use a better name for  this
-// we want the batch size to be dynamic so as to not incur difficult constraints on the input data. for large network sizes, compile-time constants won't actually help (and may in some cases hurt), so we'll use a different interface for large nets (dimension >~ 32)
-// template <size_t Nin, size_t Nout, size_t Ntot>
-// class ISmallFeedForward
-// {
-// public:
-//   constexpr static size_t size() {return Ntot;} // needs to be declared explicitly static to work. we may need to just make size_ public
-//   // virtual const Vec<Nout>& getOutput() const = 0; // returns cache. complicated w/ batch input; do we really need this?
-//   // virtual ceptron::func_grad_res<Ntot> costFuncAndGrad(const BatchVec<Nin>& x0, const BatchVec<Nout>& y) const = 0;
-//   // virtual double costFunc(const BatchVec<Nin>& x0, const BatchVec<Nout>& y) const = 0; // some minimizers will perform a quick line search and only need the function value
-//   // virtual double getCostFuncVal() const = 0;
-//   // virtual const Array<Ntot>& getCostFuncGrad() const = 0;
-//   // Array<Nin+1> getInputLayerActivation() const = 0; // do we actually need this in the interface?
-//   virtual const Array<Ntot>& getNetValue() const = 0;
-//   virtual Array<Ntot>& accessNetValue() = 0; // allows use of in-place operations
-//   // do we need interfaces for read/write/serialization in here?
-// };
 
 // we will really want to break this apart (into layers?) and generalize it but first let's get a simple working example.
 // this is a "single hidden layer feedforward network" (SLFN) with 1 output
+// a multi-layer generalization is a FFNN
 // N is input size, M is output layer size, P is the hidden layer size
 template <size_t N, size_t M=1, size_t P=(N+M)/2>
-class SingleHiddenLayerStatic
+class SlfnStatic
 {
 public:
   static constexpr size_t inputs = N;
@@ -53,9 +36,9 @@ private:
 public:
   constexpr static size_t size = size_w1_ + size_w2_;
   // constexpr static size_t size() {return size_;}
-  SingleHiddenLayerStatic() {randomInit();} // forgetting to randomly initialize can be bad, so we'll do it automatically right now.
-  SingleHiddenLayerStatic(const Array</*size_*/>& ar) {net_=ar;}; // to construct/convert directly from array
-  // ~SingleHiddenLayerStatic() {};
+  SlfnStatic() {randomInit();} // forgetting to randomly initialize can be bad, so we'll do it automatically right now.
+  SlfnStatic(const Array</*size_*/>& ar) {net_=ar;}; // to construct/convert directly from array
+  // ~SlfnStatic() {};
   void randomInit();
   // this could be useful for indicating which data elements are most relevant.
   Array<N> getInputLayerActivation(const Vec<N>& in) const; // returns activation from single input. these will no longer be cached
@@ -68,8 +51,8 @@ public:
   const Array<>& getNetValue() const {return net_;}
   Array<>& accessNetValue() {return net_;} // allows use of in-place operations
 
-  bool operator==(const SingleHiddenLayerStatic<N,M,P>& other) const;
-  bool operator!=(const SingleHiddenLayerStatic<N,M,P>& other) const {return !(this->operator==(other));}
+  bool operator==(const SlfnStatic<N,M,P>& other) const;
+  bool operator!=(const SlfnStatic<N,M,P>& other) const {return !(this->operator==(other));}
 
   void toFile(const std::string& fname) const;
   void fromFile(const std::string& fname);
@@ -87,7 +70,7 @@ public:
   // define stream operators here at the end
   // defining this in the class template is annoying but it allows us to avoid introducing
   //  another layer of template parameters. known as the "making new friends" idiom.
-  friend istream& operator>> (istream& in, SingleHiddenLayerStatic<N, M, P>& me) {
+  friend istream& operator>> (istream& in, SlfnStatic<N, M, P>& me) {
     // TODO: some metadata at the top would be nice for verification
     // let's wait until we have a more general setup (e.g. multilayer) before we worry about that.
     for (size_t i=0; i<me.size; ++i) {
@@ -102,7 +85,7 @@ public:
     }
     return in;
   }
-  friend ostream& operator<<(ostream& out, const SingleHiddenLayerStatic<N, M, P>& me) {
+  friend ostream& operator<<(ostream& out, const SlfnStatic<N, M, P>& me) {
     for (size_t i=0; i<me.size; ++i) {
       // we do want to go hexfloat, otherwise we suffer a precision loss
       // removing newline doesn't work even w/ binary, possibly because of the issue discussed in operatior>>().
@@ -115,7 +98,7 @@ public:
 
 
 template <size_t N, size_t M, size_t P>
-void SingleHiddenLayerStatic<N,M,P>::randomInit() {
+void SlfnStatic<N,M,P>::randomInit() {
   // it is better to scale random initialization by 1/sqrt(n) where n is the number of inputs in a synapse.
   //   this results in a variance of the neuron output that is not dependent on the number of inputs.
   //   dividing by the total size is just a rough approximation
@@ -190,7 +173,7 @@ costFuncAndGrad(const Net& net, const BatchVec<Net::inputs>& x0, const BatchVec<
   BatchVec<P> e1 = ActivFunc<Act>::template activToD< BatchArray<P> >(x1.array()).matrix();
   BatchVec<P> d1 = e1.cwiseProduct( (w2.template rightCols<P>()).transpose() * d2 );
 
-  // Array<SingleHiddenLayerStatic<N,M,P>::size()> costFuncGrad;
+  // Array<SlfnStatic<N,M,P>::size()> costFuncGrad;
   Array<Net::size> costFuncGrad;
   // Vec<P> gb1 = d1.rowwise().sum(); // this operation contracts along the axis of different batch data points
   Mat<P,N> gw1 = d1 * x0.transpose() + 2.0*l2reg*w1.template rightCols<N>(); // add regularization term
@@ -268,13 +251,13 @@ Vec<Net::outputs> getPrediction(const Net& net, const Vec<Net::inputs>& x0) {
 
 
 template <size_t N, size_t M, size_t P>
-bool SingleHiddenLayerStatic<N,M,P>::operator==(const SingleHiddenLayerStatic<N,M,P>& other) const {
+bool SlfnStatic<N,M,P>::operator==(const SlfnStatic<N,M,P>& other) const {
   return (this->net_ == other.net_).all();
 }
 
 
 template <size_t N, size_t M, size_t P>
-void SingleHiddenLayerStatic<N,M,P>::toFile(const std::string& fname) const {
+void SlfnStatic<N,M,P>::toFile(const std::string& fname) const {
   // ios::trunc erases any previous content in the file.
   ofstream fout(fname , ios::binary | ios::trunc );
   if (!fout.is_open()) {
@@ -285,7 +268,7 @@ void SingleHiddenLayerStatic<N,M,P>::toFile(const std::string& fname) const {
 }
 
 template <size_t N, size_t M, size_t P>	  
-void SingleHiddenLayerStatic<N,M,P>::fromFile(const std::string& fname) {
+void SlfnStatic<N,M,P>::fromFile(const std::string& fname) {
   ifstream fin(fname, ios::binary);
   if (!fin.is_open()) {
     BOOST_LOG_TRIVIAL(error) << "could not open file " << fname << " for reading.";
