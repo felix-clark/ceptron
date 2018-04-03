@@ -65,6 +65,50 @@ void check_gradient(Net& net, const BatchVec<Net::inputs>& xin, const BatchVec<N
   
 }
 
+// // version for dynamic nets
+// void check_gradient(const FfnDyn& net, const BatchVecX& xin, const BatchVecX& yin, double l2reg=0.01, double ep=1e-4, double tol=1e-8) {
+//   assert( xin.rows() == net.getNumInputs() );
+//   assert( yin.rows() == net.getNumOutputs() );
+//   const size_t Npar = net.num_weights();
+//   const ArrayX p = ArrayX::Random(Npar);
+//   // func_grad_res<> fgvals = costFuncAndGrad<Net, Reg, Act>(net, xin, yin, l2reg); // this must be done before
+//   func_grad_res<> fgvals = net.costFuncAndGrad(p, xin, yin, l2reg); // this must be done before
+//   double fval = fgvals.f; // don't think we actually need this, but it might be a nice check
+//   ArrayX evalgrad = fgvals.g;
+
+//   BOOST_LOG_TRIVIAL(trace) << "about to try to compute numerical derivative";
+  
+//   ArrayX df(Npar);// maybe can do this assignment slickly with colwise() or rowwise() ?
+//   for (size_t i_f=0; i_f<Npar; ++i_f) {
+//     ArrayX dp = Array<Npar>::Zero(Npar);
+//     BOOST_LOG_TRIVIAL(trace) << "declaring dpi";
+//     double dpi = ep*sqrt(1.0 + p(i_f)*p(i_f));
+//     dp(i_f) = dpi;
+//     ArrayX pplus = p + dp;
+//     ArrayX pminus = p - dp;
+//     net.accessNetValue() = pplus;
+//     double fplusi = costFunc<Net, Reg, Act>(net, xin, yin, l2reg);
+//     net.accessNetValue() = pminus;
+//     double fminusi = costFunc<Net, Reg, Act>(net, xin, yin, l2reg);
+//     df(i_f) = (fplusi - fminusi)/(2*dpi);
+//   }
+  
+//   BOOST_LOG_TRIVIAL(trace) << "about to check with analytic gradient";
+
+//   // now check this element-by element
+//   double sqSumDiff = (df-evalgrad).square().sum();
+//   if ( sqSumDiff > tol*tol*1
+//        || !df.isFinite().all()
+//        || !evalgrad.isFinite().all()) {
+//     BOOST_LOG_TRIVIAL(warning) << "gradient check failed at tolerance level " << tol << " (" << sqrt(sqSumDiff) << ")";
+//     BOOST_LOG_TRIVIAL(warning) << "f(p) = " << fval;
+//     BOOST_LOG_TRIVIAL(warning) << "numerical derivative = " << df.transpose().format(my_fmt);
+//     BOOST_LOG_TRIVIAL(warning) << "analytic gradient = " << evalgrad.transpose().format(my_fmt);
+//     BOOST_LOG_TRIVIAL(warning) << "difference = " << (df - evalgrad).transpose().format(my_fmt);
+//   }
+  
+// }
+
 int main(int, char**) {
   constexpr size_t Nin = 8;
   constexpr size_t Nout = 4;
@@ -79,7 +123,17 @@ int main(int, char**) {
   constexpr InternalActivator Act=InternalActivator::Softplus;
   constexpr int batchSize = 16;
 
-  FfnDyn netd(Nin, Nout);
+  FfnDyn netd(Reg, Act, Nin, Nh, Nout);
+  BOOST_LOG_TRIVIAL(debug) << "size of dynamic net: " << netd.num_weights();
+
+  
+  BatchVec<Nin> input(Nin, batchSize); // i guess we need the length in the constructor still?
+  input.setRandom();
+
+  BatchVec<Nout> output(Nout, batchSize);
+  // with a large-ish batch there are too many numbers to plug in manually
+  // output << 0.5, 0.25, 0.1, 0.01;
+  output.setRandom();
   
   // to speed up compilation we can disable the static tests while we develop the dynamic case
 #ifndef NOSTATIC
@@ -94,24 +148,12 @@ int main(int, char**) {
   
   Net testNet;
   testNet.randomInit();
-
-  BatchVec<Nin> input(Nin, batchSize); // i guess we need the length in the constructor still?
-  input.setRandom();
-
-  BatchVec<Nout> output(Nout, batchSize);
-  // with a large-ish batch there are too many numbers to plug in manually
-  // output << 0.5, 0.25, 0.1, 0.01;
-  output.setRandom();
   
-  // we need to change the interface here to spit out intermediate-layer activations
+  // we need to change the interface to let us spit out intermediate-layer activations
   // "activation" only has a useful debug meaning for a single layer
-  // testNet.propagateData( input, output );
   BOOST_LOG_TRIVIAL(info) << "input data is:\n" << input.format(my_fmt);
-  // BOOST_LOG_TRIVIAL(info) << "input layer cache is:  " << testNet.getInputLayerActivation().transpose().format(my_fmt);
   BOOST_LOG_TRIVIAL(info) << "first weights:\n" << testNet.getFirstSynapses().format(my_fmt);
-  // BOOST_LOG_TRIVIAL(info) << "hidden activation:\n" << testNet.getHiddenLayerActivation().transpose().format(my_fmt);
   BOOST_LOG_TRIVIAL(info) << "second weights:\n" << testNet.getSecondSynapses().format(my_fmt);
-  // BOOST_LOG_TRIVIAL(info) << "output of random network is:  " << testNet.getPrediction().transpose().format(my_fmt);
   auto& pars = testNet.getNetValue();
   // BOOST_LOG_TRIVIAL(info) << "net value of array:\n" << testNet.getNetValue().format(my_fmt);
   BOOST_LOG_TRIVIAL(info) << "array has " << pars.size() << " parameters.";
