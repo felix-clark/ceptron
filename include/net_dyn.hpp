@@ -45,8 +45,9 @@ private:
 class Layer
 {
 public:
-  // template <typename ...Ts> Layer(InternalActivator act, RegressionType reg, size_t ins, size_t nexts, Ts... sizes);
+   // constructor for output layer
   Layer(InternalActivator act, RegressionType reg, size_t ins, size_t outs);
+  // constructor for internal
   template <typename ...Ts> Layer(InternalActivator act, RegressionType reg, size_t ins, size_t n1, size_t n2, Ts... sizes);
   virtual ~Layer() = default;
 
@@ -83,26 +84,10 @@ template <typename... Ts> FfnDyn::FfnDyn(RegressionType reg, InternalActivator a
 }
 
 
-// // template <>
-// Layer::Layer(InternalActivator act, RegressionType reg,
-// 	     size_t ins, size_t outs)
-//   : inputs_(ins)
-//   , outputs_(outs)
-//   , is_output_(true)
-//   // , bias_(data.data(), outs)
-//   // , weights_(data.segment(outs, ins*outs).data(), outs, ins)
-//   , act_(act)
-//   , reg_(reg)
-// {
-//   // do something with reg to save it. possibly point to appropriate functions.
-//   // BOOST_LOG_TRIVIAL(debug) << "in output layer constructor with " << ins << " inputs and " << outs << " outputs.";
-// }
-
-  // could maybe switch order of parameters w/ a template, but it's probably not worth it
+// could maybe switch order of parameters w/ a template, but it's probably not worth it
 template <typename...Ts>
 Layer::Layer(InternalActivator act, RegressionType reg,
 	     size_t ins, size_t n1, size_t n2,
-	     // std::enable_if<(sizeof...(Ts)>1), size_t>::type ins,
 	     Ts... others)
   : inputs_(ins)
   , is_output_(false)
@@ -111,12 +96,11 @@ Layer::Layer(InternalActivator act, RegressionType reg,
   , act_(act)
   , reg_(reg)
 {
-  // static_assert( sizeof...(Ts) > 1, "this should only get called for intermediate layers" );
   // static_assert( sizeof...(Ts) > 0, "this should only get called for intermediate layers" );
   next_layer_ = std::make_shared<Layer>(act, reg, n1, n2, others...);
-  outputs_ = n1; // this should give us the first element of others...
+  outputs_ = n1;
   // outputs_ = next_layer_->getNumInputs(); // this should give us the first element of others...
 	  
-  // BOOST_LOG_TRIVIAL(debug) << "in intermediate layer constructor with " << inputs_ << " inputs and " << outputs_ << " outputs.";
+  BOOST_LOG_TRIVIAL(debug) << "in intermediate layer constructor with " << inputs_ << " inputs and " << outputs_ << " outputs.";
 }
 
