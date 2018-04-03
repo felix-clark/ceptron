@@ -11,6 +11,7 @@ namespace ceptron {
   using VecX = Vec<Eigen::Dynamic>;
   template <int M=Eigen::Dynamic>
   using BatchVec = Eigen::Matrix<double, M, Eigen::Dynamic>;
+  using BatchVecX = BatchVec<Eigen::Dynamic>;
   
   template <int M=Eigen::Dynamic> // don't think we need anything but column arrays
   using Array = Eigen::Array<double, M, 1>;
