@@ -45,12 +45,13 @@ set(MY_DEBUG_OPTIONS -g -O0 -Wall -Wextra -pedantic)
 set(MY_RELEASE_OPTIONS -O3 -Wall -Wextra -pedantic)
 
 # we can add compile definitions for all targets at once with add_definitions(-DNOSTATIC)
+# this has nothing to do w/ the linkage of the library - just whether to compile our compile-time static NNs for testing
 
 # define our library
-# i guess we will produce a shared library instead of static since we will feasibly have multiple applications using the same lib
+#  we will feasibly have multiple applications using the same lib, but static is generally better if we can get away with it
 # this should probably be a build option for CMake. it might be nice to produce both.
-# add_library(ceptron ${SOURCES})
-add_library(ceptron SHARED ${SOURCES})
+add_library(ceptron STATIC ${SOURCES})
+# add_library(ceptron SHARED ${SOURCES})
 # it appears that if we list the Eigen target here, we don't have to manually include the headers
 target_link_libraries(ceptron Eigen3::Eigen ${Boost_LOG_LIBRARY} ${CMAKE_THREAD_LIBS_INIT})
 # PUBLIC should propagate these flags down to dependencies
