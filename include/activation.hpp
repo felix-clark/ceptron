@@ -138,7 +138,8 @@ template <typename ArrT>
 ArrT ActivFunc<InternalActivator::LReLU>::activToD(const ArrT& act) /*const*/ {
   constexpr double alpha = 1.0/128.0;
   // maybe return 0.5 at zero exactly to give nets that are zero-initialized some gradient
-  return (act > 0).select(ArrT::Ones(), alpha*ArrT::Ones());
+  return (act > 0).select(ArrT::Ones(act.cols(), act.rows()),
+			  alpha*ArrT::Ones(act.cols(), act.rows()));
   // need to address why this is breaking at some point.
   // the temporary object created by each condition might not last long enough
   // return (act > 0).select(ArrT::Ones(),
