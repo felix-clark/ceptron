@@ -1,5 +1,6 @@
 #include "global.hpp"
 #include "training.hpp"
+#include "train_dyn.hpp"
 #include "slfn.hpp"
 #include "ffn_dyn.hpp"
 #include <boost/log/core.hpp>
@@ -19,11 +20,11 @@ namespace {
   // constants for this source only
   constexpr size_t Nin = 16; // there are 18-1 features; 16 bools and 1 int
   constexpr size_t Nout = 7; // there are 7 possible types of animals in this set
-  // constexpr size_t Nh = 16; // number of nodes in hidden layer
   constexpr size_t Nh = 8; // number of nodes in hidden layer
   constexpr RegressionType Reg=RegressionType::Categorical;
   // constexpr InternalActivator Act=InternalActivator::Softplus;
   constexpr InternalActivator Act=InternalActivator::Tanh;
+  using Net = SlfnStatic<Nin, Nout, Nh>;
 
   namespace logging = boost::log;
   using std::string;
@@ -42,6 +43,11 @@ Vec<Nin> x_dog();
 Vec<Nin> x_woodpecker();
 Vec<Nin> x_salamander();
 
+void printPredictions(const FfnDyn& net, const ArrayX& pars) {
+  BOOST_LOG_TRIVIAL(debug) << "dog: " << net.prediction(pars, x_dog()).transpose();
+  BOOST_LOG_TRIVIAL(debug) << "woodpecker: " << net.prediction(pars, x_woodpecker()).transpose();
+  BOOST_LOG_TRIVIAL(debug) << "salamander: " << net.prediction(pars, x_salamander()).transpose();
+}
 
 int main(int argc, char** argv) {
   logging::core::get()->set_filter
@@ -53,39 +59,61 @@ int main(int argc, char** argv) {
   }
   string datafile = argv[1];
 
-  // seed random initializations. Eigen uses std::rand(), which is seeded via srand().
-  // std::srand( time(nullptr) );
-  std::srand( 3490 );
-  
-  FfnDyn netd(Reg, Act, Nin, Nh, Nout);
-  
-#ifndef NOSTATIC
-  
   auto datapair = readFromFile(datafile);
   BatchVec<Nin> xb = datapair.first;
   BatchVec<Nout> yb = datapair.second;
 
+  // seed random initializations. Eigen uses std::rand(), which is seeded via srand().
+  // std::srand( time(nullptr) );
+  std::srand( 3490 );
+  double l2reg = 0.1;
+  int numEpochs = 320; // AdaDelta trains pretty quickly, and probably starts to overfit. it does do better at categorizing a salamander as an amphibian rather than a reptile if we let it run more.
+  
+  FfnDyn netd(Reg, Act, Nin, Nh, Nout);
+  netd.setL2Reg(l2reg);
+  auto parsd = netd.randomWeights();
+  AdaDelta<Net::size> msd; // we need a dynamic version to make this instantiation less awkward. in fact the whole thing should probably be made dynamic
+  
+  BOOST_LOG_TRIVIAL(info) << "running test on dynamic version";
+  BOOST_LOG_TRIVIAL(debug) << "parameter space has dimension " << netd.num_weights();
+
+  BOOST_LOG_TRIVIAL(debug) << "pre-training predictions (should just be random):";
+  printPredictions(netd, parsd);
+  
+  for (int i_ep=0; i_ep<numEpochs; ++i_ep) {
+    if (i_ep % 64 == 0) {
+      BOOST_LOG_TRIVIAL(info) << "beginning " << i_ep << "th epoch";
+      BOOST_LOG_TRIVIAL(info) << "cost function: " << netd.costFunc(parsd, xb, yb);
+      BOOST_LOG_TRIVIAL(debug) << "mid-training predictions:";
+      printPredictions(netd, parsd);
+    }
+    trainFfnDyn(netd, parsd, msd, xb, yb );
+  }
+  BOOST_LOG_TRIVIAL(info) << "post-training predictions:";
+  printPredictions(netd, parsd);
+  
+  
+#ifndef NOSTATIC
+  
   // BOOST_LOG_TRIVIAL( debug ) << '\n' << xb.transpose();
   // BOOST_LOG_TRIVIAL( debug ) << '\n' << yb.transpose();
 
   // since this dataset is rather small, we'll do full batch gradient descent directly.
 
-  using Net = SlfnStatic<Nin, Nout, Nh>;
   Net net;
   net.randomInit(); // should be done by default now, but just to be explicit we'll re-do it here.
   // from a programming perspective it seems preferable to not initialize to random variables, but we have to make sure to remember to randomize every time.
+  BOOST_LOG_TRIVIAL(info) << "running test on static version";
   BOOST_LOG_TRIVIAL(info) << "parameter space has dimension " << Net::size;
   // GradientDescent<Net::size> minstep; // this could be a choice of a different minimizer
   // AcceleratedGradient<Net::size> minstep;
   AdaDelta<Net::size> minstep; // this is a decent first choice since it is not supposed to depend strongly on hyperparameters
-  double l2reg = 0.1;
 
   BOOST_LOG_TRIVIAL(debug) << "pre-training predictions (should just be random):";
   BOOST_LOG_TRIVIAL(debug) << "dog: " << prediction<Net, Reg, Act>(net, x_dog()).transpose();
   BOOST_LOG_TRIVIAL(debug) << "woodpecker: " << prediction<Net, Reg, Act>(net, x_woodpecker()).transpose();
   BOOST_LOG_TRIVIAL(debug) << "salamander: " << prediction<Net, Reg, Act>(net, x_salamander()).transpose();
   
-  int numEpochs = 320; // AdaDelta trains pretty quickly, and probably starts to overfit. it does do better at categorizing a salamander as an amphibian rather than a reptile if we let it run more.
   for (int i_ep=0; i_ep<numEpochs; ++i_ep) {
     if (i_ep % 64 == 0) {
       BOOST_LOG_TRIVIAL(info) << "beginning " << i_ep << "th epoch";
@@ -104,7 +132,7 @@ int main(int argc, char** argv) {
   BOOST_LOG_TRIVIAL(info) << "salamander: " << prediction<Net, Reg, Act>(net, x_salamander()).transpose();
 
 #else
-  BOOST_LOG_TRIVIAL(info) << "Skipping static nets.";
+  BOOST_LOG_TRIVIAL(info) << "Skipped testing static nets.";
 #endif // NOSTATIC
   
   return 0;

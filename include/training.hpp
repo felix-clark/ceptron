@@ -1,7 +1,6 @@
 #pragma once
 #include "global.hpp"
 #include "slfn.hpp"
-#include "ffn_dyn.hpp"
 #include "min_step.hpp"
 #include <boost/log/trivial.hpp>
 #include <functional>
@@ -31,7 +30,4 @@ namespace ceptron {
     net.accessNetValue() += dp; // increment net
   }
 
-  // can be defined in .cpp
-  // void trainFfnDyn(FfnDyn& net, ...);
-  
 } // namespace ceptron
