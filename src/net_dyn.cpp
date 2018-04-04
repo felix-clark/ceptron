@@ -77,7 +77,7 @@ double FfnDyn::Layer::costFunction(const Eigen::Ref<const ArrayX>& netvals, cons
   }
 }
 
-void FfnDyn::Layer::getCostFunctionGrad(const Eigen::Ref<const ArrayX>& netvals, const BatchVecX& xin, const BatchVecX& yin, /*const*/ Eigen::Ref<ArrayX>/*&*/ gradnet) const { // , regularization etc.)
+MatX FfnDyn::Layer::getCostFunctionGrad(const Eigen::Ref<const ArrayX>& netvals, const BatchVecX& xin, const BatchVecX& yin, /*const*/ Eigen::Ref<ArrayX>/*&*/ gradnet) const { // , regularization etc.)
   // const auto batchsize = xin.cols();
   assert ( xin.cols() == yin.cols() );
   assert ( netvals.size() == gradnet.size() );
@@ -92,21 +92,30 @@ void FfnDyn::Layer::getCostFunctionGrad(const Eigen::Ref<const ArrayX>& netvals,
     BatchVecX x1 = outputGate(reg_, a1.array()).matrix(); // would be nice to generalize outputGate and activ. member function at initialization?
     // in principle not every regression type might work out to have the bias error term be so simple, but most are constructed this way.
     BatchVecX delta = x1 - yin; // a function of output x
-    gradnet.segment(0,outputs_) = delta.rowwise().sum().array(); // bias gradient
     MatX gw = delta * xin.matrix().transpose(); // add l2 regularization terms
-    gradnet.segment(outputs_, inputs_*outputs_) = Map<ArrayX>(gw.data(), num_weights_);
+    gradnet.segment(0,outputs_) = delta.rowwise().sum().array(); // bias gradient
+    gradnet.segment(outputs_, inputs_*outputs_) = Map<ArrayX>(gw.data(), inputs_*outputs_);
+    // pass back delta term...
+    BatchVecX wd = weights.transpose() * delta; // different expression for delta, but common to both internal and output layer cases
+    return wd;
   } else {
     assert( insize > getNumWeights() );
     BatchArrayX x1 = activ(act_, a1.array());
+
+    // before this...
     BatchVecX e = activToD(act_, x1).matrix(); // seems like this could be combined with the above call
-    throw std::runtime_error( "unimplemented gradient");
-    // next_layer_=>getCostFunction(...);
+
+    const Eigen::Ref<const ArrayX>& nextNet = netvals.segment(num_weights_, insize-num_weights_);
+    Eigen::Ref<ArrayX> nextGrad = gradnet.segment(num_weights_, insize-num_weights_);
+    // recursive part: we need the W^T * delta of the next layer to get the delta for this layer
+    BatchVecX delta = e.cwiseProduct(next_layer_->getCostFunctionGrad(nextNet, x1, yin, nextGrad));
+
+    // ... and after this all seem the same between internal and external
+    MatX gw = delta * xin.matrix().transpose(); // add l2 regularization terms
+    gradnet.segment(0,outputs_) = delta.rowwise().sum().array(); // bias gradient
+    gradnet.segment(outputs_, inputs_*outputs_) = Map<ArrayX>(gw.data(), inputs_*outputs_);
     
-    // BatchVecX delta = e.cwiseProduct( weights.transpose() * nextdelta ); // need to get nextdelta from recursive call
-    
-    // return next_layer_->
-    //   getCostFunction( netvals.segment(num_weights_, insize-num_weights_),
-    // 		       activ(act_, x1.array()), yin );
+    return weights.transpose() * delta;
   }
 }
 

@@ -37,7 +37,7 @@ void check_gradient(Net& net, const BatchVec<Net::inputs>& xin, const BatchVec<N
   Array</*Npar*/> df(Npar);// maybe can do this slickly with colwise() or rowwise() ?
   for (size_t i_f=0; i_f<Npar; ++i_f) {
     Array</*Npar*/> dp = Array<Npar>::Zero(Npar);
-    BOOST_LOG_TRIVIAL(trace) << "declaring dpi";
+    // BOOST_LOG_TRIVIAL(trace) << "declaring dpi";
     double dpi = ep*sqrt(1.0 + p(i_f)*p(i_f));
     dp(i_f) = dpi;
     Array</*Npar*/> pplus = p + dp;
@@ -74,7 +74,9 @@ void check_gradient(const FfnDyn& net, const ArrayX& p, const BatchVecX& xin, co
   // const ArrayX p = ArrayX::Random(Npar);
   // func_grad_res<> fgvals = costFuncAndGrad<Net, Reg, Act>(net, xin, yin, l2reg); // this must be done before
   // func_grad_res<> fgvals = net.costFuncAndGrad(p, xin, yin/*, l2reg*/); // this must be done before
+  BOOST_LOG_TRIVIAL(trace) << "about to call costFunc";
   double fval = net.costFunc(p, xin, yin);
+  BOOST_LOG_TRIVIAL(trace) << "about to call costFuncGrad";
   ArrayX gradval = net.costFuncGrad(p, xin, yin/*, l2reg*/);
 
   BOOST_LOG_TRIVIAL(trace) << "about to try to compute numerical derivative";
@@ -82,7 +84,6 @@ void check_gradient(const FfnDyn& net, const ArrayX& p, const BatchVecX& xin, co
   ArrayX df(Npar);// maybe can do this assignment slickly with colwise() or rowwise() ?
   for (size_t i_f=0; i_f<Npar; ++i_f) {
     ArrayX dp = ArrayX::Zero(Npar);
-    BOOST_LOG_TRIVIAL(trace) << "declaring dpi";
     double dpi = ep*sqrt(1.0 + p(i_f)*p(i_f));
     dp(i_f) = dpi;
     double fplusi = net.costFunc(p+dp, xin, yin/*, l2reg*/);
@@ -107,6 +108,11 @@ void check_gradient(const FfnDyn& net, const ArrayX& p, const BatchVecX& xin, co
 }
 
 int main(int, char**) {
+  // we can adjust the log level like so:
+  namespace logging = boost::log;
+  logging::core::get()->set_filter
+    (logging::trivial::severity >= logging::trivial::debug);
+  
   constexpr size_t Nin = 8;
   constexpr size_t Nout = 4;
   constexpr size_t Nh = 6; // number of nodes in hidden layer
@@ -141,10 +147,6 @@ int main(int, char**) {
   // defines the architecture of our test NN
   using Net = SlfnStatic<Nin, Nout, Nh>;
   
-  // we can adjust the log level like so:
-  namespace logging = boost::log;
-  logging::core::get()->set_filter
-    (logging::trivial::severity >= logging::trivial::debug);
   
   Net testNet;
   testNet.randomInit();

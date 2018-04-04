@@ -43,7 +43,8 @@ namespace ceptron {
       virtual ~Layer() = default;
     
       double costFunction(const Eigen::Ref<const ArrayX>& net, const BatchVecX& xin, const BatchVecX& yin) const;
-      void getCostFunctionGrad(const Eigen::Ref<const ArrayX>& net, const BatchVecX& xin, const BatchVecX& yin, /*const*/ Eigen::Ref<ArrayX>/*&*/ gradnet) const;
+      // returns the matrix needed for backprop
+      MatX getCostFunctionGrad(const Eigen::Ref<const ArrayX>& net, const BatchVecX& xin, const BatchVecX& yin, /*const*/ Eigen::Ref<ArrayX>/*&*/ gradnet) const;
       
       size_t getNumInputs() const {return inputs_;}
       size_t getNumOutputs() const {return outputs_;}
