@@ -1,14 +1,13 @@
 #include "min_step.hpp"
+#include <boost/log/trivial.hpp>
 #include <utility> // for std::swap
 
 using Eigen::sqrt;
 
-// we don't actually want this in here, this is just for debugging
-#include <iostream>
 
 // will perform a 1D simplex minimum search to quickly find a step size
 // could possibly use instead a golden search on the interval (0,1)
-double line_search( std::function<double(double)> f, double xa, double xb, size_t maxiter, double tol ) {
+double ceptron::line_search( std::function<double(double)> f, double xa, double xb, size_t maxiter, double tol ) {
   constexpr double alpha = 1.0;
   constexpr double gamma = 2.0;
   constexpr double rho = 0.5;
@@ -26,7 +25,7 @@ double line_search( std::function<double(double)> f, double xa, double xb, size_
     }
     if ( (fa-fb)*(fa-fb) < tol*tol*(1.0 + (fa+fb)*(fa+fb)) ) {
       // tolerance reached
-      // std::cout << "exiting line search due to tolerance reached" << std::endl;
+      BOOST_LOG_TRIVIAL(trace) << "exiting line search due to tolerance reached";
       break;
     }
     
@@ -36,8 +35,8 @@ double line_search( std::function<double(double)> f, double xa, double xb, size_
     }
     if ( !( fa <= fb) ) {
       // we shouldn't get here -- possibly NaNs?
-      std::cout << "f(xa) = " << fa << ", f(xb) = " << fb << std::endl;
-      std::cout << "iteration number " << i_iter << std::endl;
+      BOOST_LOG_TRIVIAL(warning) << "f(xa) = " << fa << ", f(xb) = " << fb;
+      BOOST_LOG_TRIVIAL(warning) << "iteration number " << i_iter;
     }
     assert( !(fa > fb) ); // xa is now the best value
 
