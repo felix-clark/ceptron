@@ -7,6 +7,7 @@
 #include <Eigen/Core>
 #include <iostream>
 #include <functional>
+#include <cstdlib>
 
 using namespace ceptron;
 
@@ -69,7 +70,7 @@ void check_gradient(Net& net, const BatchVec<Net::inputs>& xin, const BatchVec<N
 void check_gradient(const FfnDyn& net, const ArrayX& p, const BatchVecX& xin, const BatchVecX& yin, double l2reg=0.01, double ep=1e-4, double tol=1e-8) {
   assert( xin.rows() == net.getNumInputs() );
   assert( yin.rows() == net.getNumOutputs() );
-  const size_t Npar = net.num_weights();
+  const int Npar = net.num_weights();
   assert( p.size() == Npar );
   // const ArrayX p = ArrayX::Random(Npar);
   // func_grad_res<> fgvals = costFuncAndGrad<Net, Reg, Act>(net, xin, yin, l2reg); // this must be done before
@@ -82,7 +83,7 @@ void check_gradient(const FfnDyn& net, const ArrayX& p, const BatchVecX& xin, co
   BOOST_LOG_TRIVIAL(trace) << "about to try to compute numerical derivative";
   
   ArrayX df(Npar);// maybe can do this assignment slickly with colwise() or rowwise() ?
-  for (size_t i_f=0; i_f<Npar; ++i_f) {
+  for (int i_f=0; i_f<Npar; ++i_f) {
     ArrayX dp = ArrayX::Zero(Npar);
     double dpi = ep*sqrt(1.0 + p(i_f)*p(i_f));
     dp(i_f) = dpi;
@@ -112,6 +113,9 @@ int main(int, char**) {
   namespace logging = boost::log;
   logging::core::get()->set_filter
     (logging::trivial::severity >= logging::trivial::debug);
+
+  // set seed for random initialization (Eigen uses std::rand())
+  std::srand( 3490 ); // could also use std::time(nullptr) from ctime
   
   constexpr size_t Nin = 8;
   constexpr size_t Nout = 4;
@@ -128,7 +132,8 @@ int main(int, char**) {
 
   FfnDyn netd(Reg, Act, Nin, Nh, Nout);
   BOOST_LOG_TRIVIAL(debug) << "size of dynamic net: " << netd.num_weights();
-  ArrayX randpar = ArrayX::Random(netd.num_weights());
+  ArrayX randpar = netd.randomWeights(); //ArrayX::Random(netd.num_weights());
+  // BOOST_LOG_TRIVIAL(debug) << randpar;
 
   
   BatchVec<Nin> input(Nin, batchSize); // i guess we need the length in the constructor still?

@@ -1,5 +1,7 @@
 #include "global.hpp"
 #include "training.hpp"
+#include "net.hpp"
+#include "net_dyn.hpp"
 #include <boost/log/core.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/log/expressions.hpp>
@@ -8,6 +10,8 @@
 #include <vector>
 #include <fstream>
 #include <sstream>
+#include <cstdlib> // for srand
+//#include <ctime> // for time
 
 namespace {
   using namespace ceptron;
@@ -49,6 +53,12 @@ int main(int argc, char** argv) {
   }
   string datafile = argv[1];
 
+  // seed random initializations. Eigen uses std::rand(), which is seeded via srand().
+  // std::srand( time(nullptr) );
+  std::srand( 3490 );
+  
+  FfnDyn netd(Reg, Act, Nin, Nh, Nout);
+  
 #ifndef NOSTATIC
   
   auto datapair = readFromFile(datafile);
@@ -71,9 +81,9 @@ int main(int argc, char** argv) {
   double l2reg = 0.1;
 
   BOOST_LOG_TRIVIAL(debug) << "pre-training predictions (should just be random):";
-  BOOST_LOG_TRIVIAL(debug) << "dog: " << getPrediction<Net, Reg, Act>(net, x_dog()).transpose();
-  BOOST_LOG_TRIVIAL(debug) << "woodpecker: " << getPrediction<Net, Reg, Act>(net, x_woodpecker()).transpose();
-  BOOST_LOG_TRIVIAL(debug) << "salamander: " << getPrediction<Net, Reg, Act>(net, x_salamander()).transpose();
+  BOOST_LOG_TRIVIAL(debug) << "dog: " << prediction<Net, Reg, Act>(net, x_dog()).transpose();
+  BOOST_LOG_TRIVIAL(debug) << "woodpecker: " << prediction<Net, Reg, Act>(net, x_woodpecker()).transpose();
+  BOOST_LOG_TRIVIAL(debug) << "salamander: " << prediction<Net, Reg, Act>(net, x_salamander()).transpose();
   
   int numEpochs = 320; // AdaDelta trains pretty quickly, and probably starts to overfit. it does do better at categorizing a salamander as an amphibian rather than a reptile if we let it run more.
   for (int i_ep=0; i_ep<numEpochs; ++i_ep) {
@@ -81,17 +91,17 @@ int main(int argc, char** argv) {
       BOOST_LOG_TRIVIAL(info) << "beginning " << i_ep << "th epoch";
       BOOST_LOG_TRIVIAL(info) << "cost function: " << costFunc<Net, Reg, Act>(net, xb, yb, l2reg);
       BOOST_LOG_TRIVIAL(debug) << "mid-training predictions:";
-      BOOST_LOG_TRIVIAL(debug) << "dog: " << getPrediction<Net, Reg, Act>(net, x_dog()).transpose();
-      BOOST_LOG_TRIVIAL(debug) << "woodpecker: " << getPrediction<Net, Reg, Act>(net, x_woodpecker()).transpose();
-      BOOST_LOG_TRIVIAL(debug) << "salamander: " << getPrediction<Net, Reg, Act>(net, x_salamander()).transpose();
+      BOOST_LOG_TRIVIAL(debug) << "dog: " << prediction<Net, Reg, Act>(net, x_dog()).transpose();
+      BOOST_LOG_TRIVIAL(debug) << "woodpecker: " << prediction<Net, Reg, Act>(net, x_woodpecker()).transpose();
+      BOOST_LOG_TRIVIAL(debug) << "salamander: " << prediction<Net, Reg, Act>(net, x_salamander()).transpose();
     }
     trainSlfnStatic<Net, Reg, Act>( net, minstep, xb, yb, l2reg );
   }
 
   BOOST_LOG_TRIVIAL(info) << "post-training predictions:";
-  BOOST_LOG_TRIVIAL(info) << "dog: " << getPrediction<Net, Reg, Act>(net, x_dog()).transpose();
-  BOOST_LOG_TRIVIAL(info) << "woodpecker: " << getPrediction<Net, Reg, Act>(net, x_woodpecker()).transpose();
-  BOOST_LOG_TRIVIAL(info) << "salamander: " << getPrediction<Net, Reg, Act>(net, x_salamander()).transpose();
+  BOOST_LOG_TRIVIAL(info) << "dog: " << prediction<Net, Reg, Act>(net, x_dog()).transpose();
+  BOOST_LOG_TRIVIAL(info) << "woodpecker: " << prediction<Net, Reg, Act>(net, x_woodpecker()).transpose();
+  BOOST_LOG_TRIVIAL(info) << "salamander: " << prediction<Net, Reg, Act>(net, x_salamander()).transpose();
 
 #else
   BOOST_LOG_TRIVIAL(info) << "Skipping static nets.";

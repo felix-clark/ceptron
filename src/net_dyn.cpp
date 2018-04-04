@@ -19,7 +19,7 @@ int FfnDyn::getNumInputs() const {
 double FfnDyn::costFunc(const ArrayX& netvals, const BatchVecX& xin, const BatchVecX& yin) const {
   assert( netvals.size() == num_weights() );
   const int batchSize = xin.cols();
-  double totalCost = first_layer_->costFunction(netvals, xin, yin);
+  double totalCost = first_layer_->costFuncRecurse(netvals, xin, yin);
   return totalCost / batchSize;
 }
 
@@ -28,10 +28,17 @@ ArrayX FfnDyn::costFuncGrad(const ArrayX& netvals, const BatchVecX& xin, const B
   const int batchSize = xin.cols();
   // set aside memory for gradient ahead of time, then recursively fill
   ArrayX grad(num_weights());
-  first_layer_->getCostFunctionGrad(netvals, xin, yin, grad);
+  first_layer_->getCostFuncGradRecurse(netvals, xin, yin, grad);
   return grad / batchSize;
 }
 
+VecX FfnDyn::prediction(const ArrayX& netvals, const VecX& xin) const {
+  return first_layer_->predictRecurse(netvals, xin);
+}
+
+ArrayX FfnDyn::randomWeights() const {
+  return first_layer_->randParsRecurse(num_weights());
+}
 
 // ---- Layer ----
 
@@ -47,16 +54,36 @@ FfnDyn::Layer::Layer(InternalActivator act, RegressionType reg,
   BOOST_LOG_TRIVIAL(trace) << "in output layer constructor with " << ins << " inputs and " << outs << " outputs.";
 }
 
-size_t FfnDyn::Layer::getNumWeightsForward() const {
+size_t FfnDyn::Layer::getNumWeightsRecurse() const {
   const size_t thisSize = getNumWeights();
-  return is_output_ ? thisSize : thisSize + next_layer_->getNumWeightsForward();
+  return is_output_ ? thisSize : thisSize + next_layer_->getNumWeightsRecurse();
 }
 
 size_t FfnDyn::Layer::getNumEndOutputs() const {
   return is_output_ ? outputs_ : next_layer_->getNumEndOutputs();
 }
 
-double FfnDyn::Layer::costFunction(const Eigen::Ref<const ArrayX>& netvals, const BatchVecX& xin, const BatchVecX& yin) const { // , regularization etc.)
+ArrayX FfnDyn::Layer::randParsRecurse(int pars_left) const {
+  if (pars_left <= 0) {
+    throw std::runtime_error("logic error in recursive call to randomize weight parameters");
+  }
+  // set to zeros
+  ArrayX pars = ArrayX::Zero(num_weights_);
+  // weights need to be scaled by the inverse sqrt of the number of inputs,
+  //  or else the variance of the matrix multiplication will scale with size of the previous layer
+  pars.segment(outputs_, inputs_*outputs_) = ArrayX::Random(inputs_*outputs_)/sqrt(inputs_);
+  if (is_output_) {
+    assert( static_cast<int>(num_weights_) == pars_left );
+    return pars;
+  }
+  ArrayX combPars(pars_left);
+  // this method of initialization is likely not the most efficient, but this function
+  //   should only be called ~once per initialization so it shouldn't be a bottleneck.
+  combPars << pars, next_layer_->randParsRecurse(pars_left-num_weights_);
+  return combPars;
+}
+
+double FfnDyn::Layer::costFuncRecurse(const Eigen::Ref<const ArrayX>& netvals, const BatchVecX& xin, const BatchVecX& yin) const { // , regularization etc.)
   // const auto batchsize = xin.cols();
   // could assert that xin.cols() == yin.cols(). maybe just in slower gradient version
   VecX bias = Eigen::Map<const VecX>(netvals.segment(0,outputs_).data(), outputs_, 1);
@@ -73,11 +100,11 @@ double FfnDyn::Layer::costFunction(const Eigen::Ref<const ArrayX>& netvals, cons
     assert( insize > getNumWeights() );
     BatchArrayX x1 = activ(act_, a1.array());
     const Eigen::Ref<const ArrayX> remNet = netvals.segment(num_weights_, insize-num_weights_); // remaining parameters to be passed on
-    return next_layer_->costFunction( remNet, x1, yin ); // add l2 regularization terms for weight matrix
+    return next_layer_->costFuncRecurse( remNet, x1, yin ); // add l2 regularization terms for weight matrix
   }
 }
 
-MatX FfnDyn::Layer::getCostFunctionGrad(const Eigen::Ref<const ArrayX>& netvals, const BatchVecX& xin, const BatchVecX& yin, /*const*/ Eigen::Ref<ArrayX>/*&*/ gradnet) const { // , regularization etc.)
+MatX FfnDyn::Layer::getCostFuncGradRecurse(const Eigen::Ref<const ArrayX>& netvals, const BatchVecX& xin, const BatchVecX& yin, /*const*/ Eigen::Ref<ArrayX>/*&*/ gradnet) const { // , regularization etc.)
   // const auto batchsize = xin.cols();
   assert ( xin.cols() == yin.cols() );
   assert ( netvals.size() == gradnet.size() );
@@ -108,7 +135,7 @@ MatX FfnDyn::Layer::getCostFunctionGrad(const Eigen::Ref<const ArrayX>& netvals,
     const Eigen::Ref<const ArrayX>& nextNet = netvals.segment(num_weights_, insize-num_weights_);
     Eigen::Ref<ArrayX> nextGrad = gradnet.segment(num_weights_, insize-num_weights_);
     // recursive part: we need the W^T * delta of the next layer to get the delta for this layer
-    BatchVecX delta = e.cwiseProduct(next_layer_->getCostFunctionGrad(nextNet, x1, yin, nextGrad));
+    BatchVecX delta = e.cwiseProduct(next_layer_->getCostFuncGradRecurse(nextNet, x1, yin, nextGrad));
 
     // ... and after this all seem the same between internal and external
     MatX gw = delta * xin.matrix().transpose(); // add l2 regularization terms
@@ -120,3 +147,21 @@ MatX FfnDyn::Layer::getCostFunctionGrad(const Eigen::Ref<const ArrayX>& netvals,
 }
 
 
+VecX FfnDyn::Layer::predictRecurse(const Eigen::Ref<const ArrayX>& netvals, const VecX& xin) const {
+  VecX bias = Eigen::Map<const VecX>(netvals.segment(0,outputs_).data(), outputs_, 1);
+  MatX weights = Eigen::Map<const MatX>(netvals.segment(outputs_, inputs_*outputs_).data(),
+					outputs_, inputs_);
+  const auto insize = netvals.size();
+  BatchVecX a1 = weights*xin.matrix();// + bias;
+  a1.colwise() += bias;
+  if (is_output_) {
+    assert( insize == getNumWeights() );
+    BatchVecX x1 = outputGate(reg_, a1); // would be nice to generalize output gates here as well
+    return x1;
+  } else {
+    assert( insize > getNumWeights() );
+    BatchArrayX x1 = activ(act_, a1.array());
+    const Eigen::Ref<const ArrayX> remNet = netvals.segment(num_weights_, insize-num_weights_); // remaining parameters to be passed on
+    return next_layer_->predictRecurse( remNet, x1 ); // add l2 regularization terms for weight matrix
+  }
+}

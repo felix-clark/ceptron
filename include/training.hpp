@@ -1,9 +1,13 @@
 #pragma once
 #include "global.hpp"
 #include "net.hpp"
+#include "net_dyn.hpp"
 #include "min_step.hpp"
 #include <boost/log/trivial.hpp>
 #include <functional>
+
+// long term it's probably not best organization to include all the training functions in here,
+//  because then to use a trainer we have to indirectly include the whole library.
 
 namespace ceptron {
   // we may want to return the entire net value so that the input can be declared const,
@@ -27,4 +31,7 @@ namespace ceptron {
     net.accessNetValue() += dp; // increment net
   }
 
+  // can be defined in .cpp
+  // void trainFfnDyn(FfnDyn& net, ...);
+  
 } // namespace ceptron

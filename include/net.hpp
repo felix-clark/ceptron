@@ -40,8 +40,8 @@ namespace ceptron {
     // ~SlfnStatic() {};
     void randomInit();
     // this could be useful for indicating which data elements are most relevant.
-    Array<N> getInputLayerActivation(const Vec<N>& in) const; // returns activation from single input. these will no longer be cached
-    Array<P> getHiddenLayerActivation(const Vec<N>& in) const; // they don't actually need to be member functions
+    Array<N> inputLayerActivation(const Vec<N>& in) const; // returns activation from single input. these will no longer be cached
+    Array<P> hiddenLayerActivation(const Vec<N>& in) const; // they don't actually need to be member functions
     // using "auto" may not be best when returning a map view -- TODO: look into this more?
     auto getFirstSynapses() const {return Map< const Mat<P, N+1> >(net_.data());};
     auto getSecondSynapses() const
@@ -57,13 +57,9 @@ namespace ceptron {
     void fromFile(const std::string& fname);
   
   private:
-    // we could also store these as matrices and map to an array using segment<>
+    // we will likely move to not storing the network data directly in this class.
+    // it may make sense to declare a struct (union) of functions + net data
     Array<> net_ = Array<size>::Zero(size);
-    // by specifying the maximum size at compile-time we could allow some optimizations, but it may not matter much since the array shouldn't be changing size anyway
-    // this changes the return type though, and it's probably easiest to just let the parameter array be a default dynamic array right now
-    // Eigen::Array<double, Eigen::Dynamic, 1,
-    // 	       0, // default of 0 goes to column-major and auto-align
-    // 	       size, 1> net_ = Array<size>::Zero(size);
 
   public:
     // define stream operators here at the end
@@ -229,7 +225,7 @@ namespace ceptron {
   template <typename Net,
 	    RegressionType Reg,
 	    InternalActivator Act>
-  Vec<Net::outputs> getPrediction(const Net& net, const Vec<Net::inputs>& x0) {
+  Vec<Net::outputs> prediction(const Net& net, const Vec<Net::inputs>& x0) {
     constexpr size_t N = Net::inputs;
     constexpr size_t M = Net::outputs;
     constexpr size_t P = Net::hiddens;
@@ -261,6 +257,7 @@ namespace ceptron {
     ofstream fout(fname , ios::binary | ios::trunc );
     if (!fout.is_open()) {
       BOOST_LOG_TRIVIAL(error) << "could not open file " << fname << " for writing.";
+      return;
     }
     fout << *this;
     fout.close();

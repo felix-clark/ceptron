@@ -23,11 +23,12 @@ namespace ceptron {
     int num_weights() const {return size_;} // number of weights in net (size of gradient)
     int getNumInputs() const;
     int getNumOutputs() const;
+    ArrayX randomWeights() const; // returns a parameter array with weights (but not biases) randomized, as a suggested initialization
     double costFunc(const ArrayX& netvals, const BatchVecX& xin, const BatchVecX& yin) const;
     ArrayX costFuncGrad(const ArrayX& netvals, const BatchVecX& xin, const BatchVecX& yin) const;
+    VecX prediction(const ArrayX& netvals, const VecX& xin) const;
   private:
     class Layer;// we need to forward-declare the class
-    // std::vector<Layer> layers_; // and perhaps we need only point to the first layer
     // these pointers could probably be unique for simple feed-forward nets
     std::shared_ptr<Layer> first_layer_;
     size_t size_; // saving this may be redundant, but useful for quick assertions
@@ -41,21 +42,24 @@ namespace ceptron {
       // recursive constructor for internal layers
       template <typename ...Ts> Layer(InternalActivator act, RegressionType reg, size_t ins, size_t n1, size_t n2, Ts... sizes);
       virtual ~Layer() = default;
-    
-      double costFunction(const Eigen::Ref<const ArrayX>& net, const BatchVecX& xin, const BatchVecX& yin) const;
+
+      ArrayX randParsRecurse(int) const;
+      // recursive calls to retrieve cost function, gradient, prediction
+      double costFuncRecurse(const Eigen::Ref<const ArrayX>& net, const BatchVecX& xin, const BatchVecX& yin) const;
       // returns the matrix needed for backprop
-      MatX getCostFunctionGrad(const Eigen::Ref<const ArrayX>& net, const BatchVecX& xin, const BatchVecX& yin, /*const*/ Eigen::Ref<ArrayX>/*&*/ gradnet) const;
+      // takes a non-const reference to fill the gradient with (hence "get" in the function name)
+      MatX getCostFuncGradRecurse(const Eigen::Ref<const ArrayX>& net, const BatchVecX& xin, const BatchVecX& yin, /*const*/ Eigen::Ref<ArrayX>/*&*/ gradnet) const;
+      VecX predictRecurse(const Eigen::Ref<const ArrayX>& net, const VecX& xin) const;
       
       size_t getNumInputs() const {return inputs_;}
       size_t getNumOutputs() const {return outputs_;}
       size_t getNumEndOutputs() const;
       int getNumWeights() const {return outputs_*(inputs_+1);}
-      size_t getNumWeightsForward() const; // recursively compute the total number of weight elements including this layer and all in front
-    protected:
+      size_t getNumWeightsRecurse() const; // recursively compute the total number of weight elements including this layer and all in front
+    private:
       size_t inputs_;
       size_t outputs_;
       size_t num_weights_;
-    private:
       // the output layer won't need to access these. in fact they will be somewhat wasted memory.
       // if it was significant we could split this into InputLayer, but that's probably not a big deal.
     
@@ -74,7 +78,7 @@ namespace ceptron {
   {
     static_assert( sizeof...(layer_sizes) > 1, "network needs more than a single layer to be meaningful" );
     first_layer_ = std::make_shared<Layer>(act, reg, layer_sizes...);
-    size_ = first_layer_->getNumWeightsForward();
+    size_ = first_layer_->getNumWeightsRecurse();
   }
 
 
