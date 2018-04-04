@@ -50,15 +50,15 @@ double Layer::getCostFunction(const Eigen::Ref<const ArrayX>& netvals, const Bat
   MatX weights = Eigen::Map<const MatX>(netvals.segment(outputs_, inputs_*outputs_).data(), outputs_, inputs_);
   const int thissize = outputs_*(inputs_+1); // this could be computed/saved ahead of time, like at construction
   const auto insize = netvals.size();
+  BatchVecX x1 = weights*xin.matrix() + bias;
   if (is_output_) {
     assert( insize == getNumWeights() );
-    // TODO: implement runtime regression here
+    return costFuncVal(reg_, xin, yin);
   } else {
     assert( insize > getNumWeights() );
     return next_layer_->
-      getCostFunction( netvals.segment(thissize,
-				       insize-thissize),
-		       activ(act_, (weights*xin.matrix() + bias).array()), yin );
+      getCostFunction( netvals.segment(thissize, insize-thissize),
+		       activ(act_, x1.array()), yin );
   }
 }
 

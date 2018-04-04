@@ -14,6 +14,11 @@ enum class RegressionType {Categorical, LeastSquares, Poisson};
 // an input is meant 
 // for non-exclusive classification, independent NNs can be used.
 
+// runtime versions
+ceptron::BatchArrayX outputGate(RegressionType, const Eigen::Ref<const ceptron::BatchArrayX>& aout);
+double costFuncVal(RegressionType, const Eigen::Ref<const ceptron::BatchArrayX>& xout, const Eigen::Ref<const ceptron::BatchArrayX>& yin);
+
+
 template <RegressionType Reg>
 class Regressor
 {
