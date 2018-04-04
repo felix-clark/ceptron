@@ -24,11 +24,11 @@ double costFuncVal(RegressionType reg,
 		   const Eigen::Ref<const BatchArrayX>& yin) {
   switch (reg) {
   case RegressionType::Categorical:
-    return Regressor<RegressionType::Categorical>::costFuncVal(xout,  yin);
+    return Regressor<RegressionType::Categorical>::costFuncVal(xout, yin);
   case RegressionType::LeastSquares:
-    return Regressor<RegressionType::LeastSquares>::costFuncVal(xout,  yin);
+    return Regressor<RegressionType::LeastSquares>::costFuncVal(xout, yin);
   case RegressionType::Poisson:
-    return Regressor<RegressionType::Poisson>::costFuncVal(xout,  yin);    
+    return Regressor<RegressionType::Poisson>::costFuncVal(xout, yin);    
   }
   throw std::runtime_error( "unimplemented runtime cost function" );
 }
