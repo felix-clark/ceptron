@@ -69,7 +69,7 @@ foreach(_TESTSRC ${TESTSRCS})
   message( STATUS ${_TESTOUT} )
   add_executable(${_TESTOUT} ${_TESTSRC})
   target_link_libraries(${_TESTOUT} ceptron)
-  target_compile_definitions(${_TESTOUT} PRIVATE NOSTATIC) # turn off the static template testers right now just for speed
+  # target_compile_definitions(${_TESTOUT} PRIVATE NOSTATIC) # turn off the static template testers right now just for speed
 endforeach()
 
 
