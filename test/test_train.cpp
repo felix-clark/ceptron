@@ -1,7 +1,7 @@
 #include "global.hpp"
 #include "training.hpp"
-#include "net.hpp"
-#include "net_dyn.hpp"
+#include "slfn.hpp"
+#include "ffn_dyn.hpp"
 #include <boost/log/core.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/log/expressions.hpp>

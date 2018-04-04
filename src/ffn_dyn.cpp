@@ -1,4 +1,4 @@
-#include "net_dyn.hpp"
+#include "ffn_dyn.hpp"
 
 namespace {
   using namespace ceptron;
@@ -6,11 +6,11 @@ namespace {
 
 // ---- FfnDyn ----
 
-int FfnDyn::getNumOutputs() const {
+int FfnDyn::numOutputs() const {
   return first_layer_->getNumEndOutputs();
 }
 
-int FfnDyn::getNumInputs() const {
+int FfnDyn::numInputs() const {
   return first_layer_->getNumInputs();
 }
 

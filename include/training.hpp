@@ -1,7 +1,7 @@
 #pragma once
 #include "global.hpp"
-#include "net.hpp"
-#include "net_dyn.hpp"
+#include "slfn.hpp"
+#include "ffn_dyn.hpp"
 #include "min_step.hpp"
 #include <boost/log/trivial.hpp>
 #include <functional>

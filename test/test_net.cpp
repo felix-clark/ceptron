@@ -1,6 +1,6 @@
 #include "global.hpp"
-#include "net.hpp"
-#include "net_dyn.hpp"
+#include "slfn.hpp"
+#include "ffn_dyn.hpp"
 #include <boost/log/core.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/log/expressions.hpp>
@@ -68,8 +68,8 @@ void check_gradient(Net& net, const BatchVec<Net::inputs>& xin, const BatchVec<N
 
 // version for dynamic nets
 void check_gradient(const FfnDyn& net, const ArrayX& p, const BatchVecX& xin, const BatchVecX& yin, double l2reg=0.01, double ep=1e-4, double tol=1e-8) {
-  assert( xin.rows() == net.getNumInputs() );
-  assert( yin.rows() == net.getNumOutputs() );
+  assert( xin.rows() == net.numInputs() );
+  assert( yin.rows() == net.numOutputs() );
   const int Npar = net.num_weights();
   assert( p.size() == Npar );
   // const ArrayX p = ArrayX::Random(Npar);

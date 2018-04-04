@@ -21,8 +21,8 @@ namespace ceptron {
     // FfnDyn(FfnDyn&&) = delete; // move ops are not defined when we implement or delete the copy-constructor
     // might need to disable operator= too?
     int num_weights() const {return size_;} // number of weights in net (size of gradient)
-    int getNumInputs() const;
-    int getNumOutputs() const;
+    int numInputs() const;
+    int numOutputs() const;
     ArrayX randomWeights() const; // returns a parameter array with weights (but not biases) randomized, as a suggested initialization
     double costFunc(const ArrayX& netvals, const BatchVecX& xin, const BatchVecX& yin) const;
     ArrayX costFuncGrad(const ArrayX& netvals, const BatchVecX& xin, const BatchVecX& yin) const;
