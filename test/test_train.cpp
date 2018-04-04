@@ -10,6 +10,8 @@
 #include <sstream>
 
 namespace {
+  using namespace ceptron;
+  
   // constants for this source only
   constexpr size_t Nin = 16; // there are 18-1 features; 16 bools and 1 int
   constexpr size_t Nout = 7; // there are 7 possible types of animals in this set
@@ -19,8 +21,6 @@ namespace {
   // constexpr InternalActivator Act=InternalActivator::Softplus;
   constexpr InternalActivator Act=InternalActivator::Tanh;
 
-  using ceptron::BatchVec;
-  
   namespace logging = boost::log;
   using std::string;
   using std::pair;

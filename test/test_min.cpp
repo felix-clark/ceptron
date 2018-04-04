@@ -4,7 +4,9 @@
 #include <boost/log/trivial.hpp>
 #include <iostream>
 
-using namespace ceptron;
+namespace {
+  using namespace ceptron;
+} // namespace
 
 template <size_t N>
 void check_gradient(func_t<N> f, grad_t<N> g, Array<N> p, double ep=1e-6, double tol=1e-2) {
@@ -88,7 +90,7 @@ void print_result( min_result<N> res ) {
 template <size_t N>
 void run_test_functions( IMinStep<N>& minstep, Array<N> initpars ) {
   // assert( minstep != nullptr );
-  
+  using namespace mintest;
   BOOST_LOG_TRIVIAL(info) << "testing basic ellipse function";
   // basic gradient descent has trouble with a large scale in ellipse function
   // use lambda function to automatically use default scale parameter

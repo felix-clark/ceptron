@@ -5,7 +5,7 @@ namespace {
 } // namespace
 
 
-ceptron::BatchArrayX activ(InternalActivator act, const Eigen::Ref<const BatchArrayX>& in) {
+ceptron::BatchArrayX ceptron::activ(InternalActivator act, const Eigen::Ref<const BatchArrayX>& in) {
   switch (act) {
   case InternalActivator::Logit:
     return ActivFunc<InternalActivator::Logit>::activ(in);
@@ -22,7 +22,7 @@ ceptron::BatchArrayX activ(InternalActivator act, const Eigen::Ref<const BatchAr
 }
 
 
-ceptron::BatchArrayX activToD(InternalActivator act, const Eigen::Ref<const BatchArrayX>& x) {
+ceptron::BatchArrayX ceptron::activToD(InternalActivator act, const Eigen::Ref<const BatchArrayX>& x) {
   switch (act) {
   case InternalActivator::Logit:
     return ActivFunc<InternalActivator::Logit>::activToD(x);

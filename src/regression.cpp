@@ -5,7 +5,7 @@ namespace {
 } // namespace
 
   
-BatchArrayX outputGate(RegressionType reg, const Eigen::Ref<const BatchArrayX>& aout) {
+BatchArrayX ceptron::outputGate(RegressionType reg, const Eigen::Ref<const BatchArrayX>& aout) {
   switch (reg) {
   case RegressionType::Categorical:
     return Regressor<RegressionType::Categorical>::outputGate(aout);
@@ -19,9 +19,9 @@ BatchArrayX outputGate(RegressionType reg, const Eigen::Ref<const BatchArrayX>& 
 
 
 
-double costFuncVal(RegressionType reg,
-		   const Eigen::Ref<const BatchArrayX>& xout,
-		   const Eigen::Ref<const BatchArrayX>& yin) {
+double ceptron::costFuncVal(RegressionType reg,
+			    const Eigen::Ref<const BatchArrayX>& xout,
+			    const Eigen::Ref<const BatchArrayX>& yin) {
   switch (reg) {
   case RegressionType::Categorical:
     return Regressor<RegressionType::Categorical>::costFuncVal(xout, yin);
