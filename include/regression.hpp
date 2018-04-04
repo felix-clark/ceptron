@@ -41,10 +41,7 @@ namespace ceptron {
   template <>
   template <typename ArrT>
   double Regressor<RegressionType::Poisson>::costFuncVal(const ArrT& xout, const ArrT& yin) {
-    // the convention in ML is to divide by factor of 2.
-    // also makes backprop have same factors.
-    // max likelihood of gaussian w/ variance 1
-    //  note we also did not multiply by the factor of 2 in log-likelihood for categorical, as is convention in physics.
+    // the additional log could be avoided if we passed in the value before applying the output gate (aout)
     return  (xout - yin*log(xout)).sum();
   }
 

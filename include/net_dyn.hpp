@@ -8,13 +8,10 @@
 #include <vector>
 #include <memory>
 
-// namespace {
-//   using namespace ceptron;  
-// } // namespace
-
 namespace ceptron {
   // a runtime-sized feedforward network
-  // not sure  yet that we actually need a separate class for this
+  // not sure  yet that we actually need a separate class for this as opposed to using first-layer only,
+  //  but trimming down the interface is probably worth it.
   class FfnDyn
   {
   public:
@@ -24,8 +21,10 @@ namespace ceptron {
     // FfnDyn(FfnDyn&&) = delete; // move ops are not defined when we implement or delete the copy-constructor
     // might need to disable operator= too?
     int num_weights() const {return size_;} // number of weights in net (size of gradient)
-    size_t getNumOutputs() const;
-    double costFunc(const Eigen::Ref<const ArrayX>& netvals, const BatchArrayX& xin, const BatchArrayX& yin) const;
+    int getNumInputs() const;
+    int getNumOutputs() const;
+    double costFunc(const ArrayX& netvals, const BatchVecX& xin, const BatchVecX& yin) const;
+    ArrayX costFuncGrad(const ArrayX& netvals, const BatchVecX& xin, const BatchVecX& yin) const;
   private:
     class Layer;// we need to forward-declare the class
     // std::vector<Layer> layers_; // and perhaps we need only point to the first layer
@@ -43,8 +42,9 @@ namespace ceptron {
       template <typename ...Ts> Layer(InternalActivator act, RegressionType reg, size_t ins, size_t n1, size_t n2, Ts... sizes);
       virtual ~Layer() = default;
     
-      double getCostFunction(const Eigen::Ref<const ArrayX>& net, const BatchArrayX& xin, const BatchArrayX& yin) const;
-    
+      double costFunction(const Eigen::Ref<const ArrayX>& net, const BatchVecX& xin, const BatchVecX& yin) const;
+      void getCostFunctionGrad(const Eigen::Ref<const ArrayX>& net, const BatchVecX& xin, const BatchVecX& yin, /*const*/ Eigen::Ref<ArrayX>/*&*/ gradnet) const;
+      
       size_t getNumInputs() const {return inputs_;}
       size_t getNumOutputs() const {return outputs_;}
       size_t getNumEndOutputs() const;
