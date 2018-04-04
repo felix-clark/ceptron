@@ -46,8 +46,11 @@ set(MY_RELEASE_OPTIONS -O3 -Wall -Wextra -pedantic)
 
 # we can add compile definitions for all targets at once with add_definitions(-DNOSTATIC)
 
-# define our library (which is currently mostly in headers, but implementations of larger nets will not be so templated)
-add_library(ceptron ${SOURCES})
+# define our library
+# i guess we will produce a shared library instead of static since we will feasibly have multiple applications using the same lib
+# this should probably be a build option for CMake. it might be nice to produce both.
+# add_library(ceptron ${SOURCES})
+add_library(ceptron SHARED ${SOURCES})
 # it appears that if we list the Eigen target here, we don't have to manually include the headers
 target_link_libraries(ceptron Eigen3::Eigen ${Boost_LOG_LIBRARY} ${CMAKE_THREAD_LIBS_INIT})
 # PUBLIC should propagate these flags down to dependencies
