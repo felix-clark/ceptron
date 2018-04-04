@@ -44,14 +44,14 @@ Vec<Nin> x_woodpecker();
 Vec<Nin> x_salamander();
 
 void printPredictions(const FfnDyn& net, const ArrayX& pars) {
-  BOOST_LOG_TRIVIAL(debug) << "dog: " << net.prediction(pars, x_dog()).transpose();
-  BOOST_LOG_TRIVIAL(debug) << "woodpecker: " << net.prediction(pars, x_woodpecker()).transpose();
-  BOOST_LOG_TRIVIAL(debug) << "salamander: " << net.prediction(pars, x_salamander()).transpose();
+  BOOST_LOG_TRIVIAL(info) << "dog: " << net.prediction(pars, x_dog()).transpose();
+  BOOST_LOG_TRIVIAL(info) << "woodpecker: " << net.prediction(pars, x_woodpecker()).transpose();
+  BOOST_LOG_TRIVIAL(info) << "salamander: " << net.prediction(pars, x_salamander()).transpose();
 }
 
 int main(int argc, char** argv) {
   logging::core::get()->set_filter
-    (logging::trivial::severity >= logging::trivial::info);
+    (logging::trivial::severity >= logging::trivial::debug);
   
   if (argc <= 1) {
     BOOST_LOG_TRIVIAL(info) << "usage: " << argv[0] << " <path>/<to>/zoo.data";
@@ -72,7 +72,7 @@ int main(int argc, char** argv) {
   FfnDyn netd(Reg, Act, Nin, Nh, Nout);
   netd.setL2Reg(l2reg);
   auto parsd = netd.randomWeights();
-  AdaDelta<Net::size> msd; // we need a dynamic version to make this instantiation less awkward. in fact the whole thing should probably be made dynamic
+  AdaDelta msd(netd.num_weights());
   
   BOOST_LOG_TRIVIAL(info) << "running test on dynamic version";
   BOOST_LOG_TRIVIAL(debug) << "parameter space has dimension " << netd.num_weights();
@@ -105,9 +105,9 @@ int main(int argc, char** argv) {
   // from a programming perspective it seems preferable to not initialize to random variables, but we have to make sure to remember to randomize every time.
   BOOST_LOG_TRIVIAL(info) << "running test on static version";
   BOOST_LOG_TRIVIAL(info) << "parameter space has dimension " << Net::size;
-  // GradientDescent<Net::size> minstep; // this could be a choice of a different minimizer
-  // AcceleratedGradient<Net::size> minstep;
-  AdaDelta<Net::size> minstep; // this is a decent first choice since it is not supposed to depend strongly on hyperparameters
+  // GradientDescent minstep(Net::size); // this could be a choice of a different minimizer
+  // AcceleratedGradient minstep(Net::size);
+  AdaDelta minstep(Net::size); // this is a decent first choice since it is not supposed to depend strongly on hyperparameters
 
   BOOST_LOG_TRIVIAL(debug) << "pre-training predictions (should just be random):";
   BOOST_LOG_TRIVIAL(debug) << "dog: " << prediction<Net, Reg, Act>(net, x_dog()).transpose();

@@ -5,7 +5,7 @@
 
 namespace ceptron {
   
-  void trainFfnDyn(const FfnDyn& net, ArrayX& par, IMinStep<>& ms,
+  void trainFfnDyn(const FfnDyn& net, ArrayX& par, IMinStep& ms,
 		   const BatchVecX& x, const BatchVecX& y);
   
 } // namespace ceptron

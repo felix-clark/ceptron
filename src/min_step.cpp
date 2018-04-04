@@ -2,6 +2,10 @@
 #include <boost/log/trivial.hpp>
 #include <utility> // for std::swap
 
+namespace {
+  using namespace ceptron;
+} // namespace
+
 using Eigen::sqrt;
 
 
@@ -28,7 +32,6 @@ double ceptron::line_search( std::function<double(double)> f, double xa, double 
       BOOST_LOG_TRIVIAL(trace) << "exiting line search due to tolerance reached";
       break;
     }
-    
     if (fa > fb) {
       std::swap( xa, xb );
       std::swap( fa, fb );
@@ -39,7 +42,6 @@ double ceptron::line_search( std::function<double(double)> f, double xa, double 
       BOOST_LOG_TRIVIAL(warning) << "iteration number " << i_iter;
     }
     assert( !(fa > fb) ); // xa is now the best value
-
     double xr = xa + alpha*(xa - xb); // reflected
     double fr = f(xr);
     if (fr < fa) {
@@ -55,7 +57,6 @@ double ceptron::line_search( std::function<double(double)> f, double xa, double 
       }
       continue; // go to next step of loop
     }
-
     assert( !(fr < fa) );
     // contracted point (which is just average)
     double xc = xa + rho*(xb - xa);
@@ -67,7 +68,6 @@ double ceptron::line_search( std::function<double(double)> f, double xa, double 
       fb = fc;
       continue;
     }
-
     // shrink
     // in 1D this is almost redundant with the contraction
     // will change value of sigma from wikipedia's recommended value to change this
@@ -75,8 +75,111 @@ double ceptron::line_search( std::function<double(double)> f, double xa, double 
     // and we do indeed get here...
     xb = xa + sigma*(xb - xa);
     fb = f(xb);
-
   }
 
   return fb < fa ? xb : xa;
 }
+
+
+// template <int N>
+ArrayX ceptron::GradientDescent/*<N>*/::getDeltaPar( func_t, grad_t g, ArrayX pars ) {
+  return - learn_rate_ * g(pars);
+}
+
+// template <int N>
+ArrayX ceptron::GradientDescentWithMomentum/*<N>*/::getDeltaPar( func_t, grad_t g, ArrayX pars ) {
+  momentum_term_ = momentum_scale_ * momentum_term_ + learn_rate_ * g(pars);
+  return - momentum_term_;
+}
+
+namespace ceptron {
+  // template <int N>
+  ArrayX AcceleratedGradient/*<N>*/::getDeltaPar( func_t, grad_t g, ArrayX pars ) {
+    momentum_term_ *= momentum_scale_; // exponentially reduce momentum term
+    momentum_term_ += learn_rate_ * g(pars - momentum_term_);
+    // momentum_term_ += learn_rate_ * g(pars - 0.5*momentum_term_); // using an average between new and old points can help with convergence on rosenbrock function
+    return - momentum_term_;
+  }
+
+  // template <int N>
+  void AdaDelta/*<N>*/::resetCache()
+  {
+    accum_grad_sq_.setZero();
+    accum_dpar_sq_.setZero();
+    last_delta_par_.setZero();
+  }
+
+  // template <int N>
+  ArrayX AdaDelta/*<N>*/::getDeltaPar( func_t /*f*/, grad_t g, ArrayX pars )
+  {
+    ArrayX grad = g(pars); // an improvement might be to use an accelerated version
+    // element-wise learn rate
+    ArrayX adj_learn_rate = sqrt((accum_dpar_sq_ + ep_)/(accum_grad_sq_ + ep_));
+
+    // scaling down helps convergence but does seem to slow things down.
+    // perhaps a line search (golden section) would be an improvement
+    ArrayX dp = - learn_rate_ * adj_learn_rate * grad;
+    // we can do an explicit check to keep from over-stepping
+
+    // we should remove the line search in the general step
+    // if ( f(pars+dp) > f(pars) ) {
+    //   // a rapidly-truncated golden section search would probably be better since we can restrict 0 < alpha < 1
+    //   // this actually ends up slowing down easy convergences so perhaps it's not the best approach
+    //   // it prevents blowups but seems to negate most of the advantages of AdaDelta in the first place
+    //   // practically, it might make sense to run a few iterations w/ line search then turn it off.
+    //   auto f_line = [&](double x){return f(pars + x*dp.array());};
+    //   double alpha_step = line_search( f_line, 0.7071067, 1.0 );
+
+    //   dp *= alpha_step;
+    //   grad *= alpha_step;
+    // }
+  
+    // now we update for the next iteration
+    accum_grad_sq_ *= decay_scale_;
+    accum_grad_sq_ += (1.0-decay_scale_)*(grad.square());  
+    accum_dpar_sq_ *= decay_scale_;
+    accum_dpar_sq_ += (1.0-decay_scale_)*(last_delta_par_.square());
+
+    last_delta_par_ = dp;
+
+    // this parameter can be saved directly for the next iteration
+    return dp;
+  
+  }
+
+
+  // template <int N>
+  void Bfgs/*<N>*/::resetCache()
+  {
+    hessian_approx_.setIdentity();
+  }
+
+  // // template <int N>
+  ArrayX Bfgs::getDeltaPar( func_t f, grad_t g, ArrayX par )
+  {
+    VecX grad = g(par).matrix();
+    // the hessian approximation should remain positive definite. LLT requires positive-definiteness.
+    // LLT actually yields NaN solutions at times so perhaps our hessian is not always pos-def.
+    // using a line search seems to have alleviated this issue.
+    VecX deltap = - learn_rate_ * hessian_approx_.llt().solve(grad);
+    // VectorXd deltap = - learn_rate_ * hessian_approx_.ldlt().solve(grad);
+    // VectorXd deltap = - learn_rate_ * hessian_approx_.householderQr().solve(grad); // no requirements on matrix for this
+
+    // we might only want to do this line search if we see an increasing value f(p+dp) > f(p)
+    // , in which case a golden section search might be more efficient
+    auto f_line = [&](double x){return f(par + x*deltap.array());};
+    double alpha_step = line_search( f_line, 0.7071067, 1.0 );  
+
+    deltap *= alpha_step;
+  
+    VecX deltagrad = (g(par+deltap.array()).matrix() - grad);
+
+    // storing hessian by its square root could  possibly help numerical stability
+    // might be good to check for divide-by-zero here, even if it's not likely to happen
+    hessian_approx_ += (deltagrad * deltagrad.transpose())/deltagrad.dot(deltap)
+      - hessian_approx_ * deltap * deltap.transpose() * hessian_approx_ / (deltap.transpose() * hessian_approx_ * deltap);
+  
+    return deltap.array();
+  }
+
+} // namespace ceptron
