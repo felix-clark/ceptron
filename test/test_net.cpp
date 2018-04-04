@@ -67,7 +67,7 @@ void check_gradient(Net& net, const BatchVec<Net::inputs>& xin, const BatchVec<N
 }
 
 // version for dynamic nets
-void check_gradient(const FfnDyn& net, const ArrayX& p, const BatchVecX& xin, const BatchVecX& yin, double l2reg=0.01, double ep=1e-4, double tol=1e-8) {
+void check_gradient(const FfnDyn& net, const ArrayX& p, const BatchVecX& xin, const BatchVecX& yin, double ep=1e-4, double tol=1e-8) {
   assert( xin.rows() == net.numInputs() );
   assert( yin.rows() == net.numOutputs() );
   const int Npar = net.num_weights();
@@ -133,6 +133,7 @@ int main(int, char**) {
   FfnDyn netd(Reg, Act, Nin, Nh, Nout);
   BOOST_LOG_TRIVIAL(debug) << "size of dynamic net: " << netd.num_weights();
   ArrayX randpar = netd.randomWeights(); //ArrayX::Random(netd.num_weights());
+  netd.setL2Reg(0.01);
   // BOOST_LOG_TRIVIAL(debug) << randpar;
 
   

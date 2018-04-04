@@ -14,6 +14,11 @@ int FfnDyn::numInputs() const {
   return first_layer_->getNumInputs();
 }
 
+void FfnDyn::setL2Reg(double l) {
+  first_layer_->setL2RegRecurse(l);
+}
+
+
 // double FfnDyn::costFunc(const Eigen::Ref<const ArrayX>& netvals, const BatchArrayX& xin, const BatchArrayX& yin) const {
 // a normal reference should be enough -- we don't need to pass in blocks of matrices at this time
 double FfnDyn::costFunc(const ArrayX& netvals, const BatchVecX& xin, const BatchVecX& yin) const {
@@ -63,6 +68,11 @@ size_t FfnDyn::Layer::getNumEndOutputs() const {
   return is_output_ ? outputs_ : next_layer_->getNumEndOutputs();
 }
 
+void FfnDyn::Layer::setL2RegRecurse(double l) {
+  l2_lambda_ = l;
+  if (!is_output_) next_layer_->setL2RegRecurse(l);
+}
+
 ArrayX FfnDyn::Layer::randParsRecurse(int pars_left) const {
   if (pars_left <= 0) {
     throw std::runtime_error("logic error in recursive call to randomize weight parameters");
@@ -92,15 +102,18 @@ double FfnDyn::Layer::costFuncRecurse(const Eigen::Ref<const ArrayX>& netvals, c
   const auto insize = netvals.size();
   BatchVecX a1 = weights*xin.matrix();// + bias;
   a1.colwise() += bias;
+
+  double regTerm = l2_lambda_ * weights.array().square().sum();
+
   if (is_output_) {
     assert( insize == getNumWeights() );
     BatchVecX x1 = outputGate(reg_, a1); // would be nice to generalize outputGate and activ. member function at initialization?
-    return costFuncVal(reg_, x1, yin); // we need to add regularization terms as well
+    return regTerm + costFuncVal(reg_, x1, yin); // we need to add regularization terms as well
   } else {
     assert( insize > getNumWeights() );
     BatchArrayX x1 = activ(act_, a1.array());
     const Eigen::Ref<const ArrayX> remNet = netvals.segment(num_weights_, insize-num_weights_); // remaining parameters to be passed on
-    return next_layer_->costFuncRecurse( remNet, x1, yin ); // add l2 regularization terms for weight matrix
+    return regTerm + next_layer_->costFuncRecurse( remNet, x1, yin ); // add l2 regularization terms for weight matrix
   }
 }
 
@@ -119,10 +132,10 @@ MatX FfnDyn::Layer::getCostFuncGradRecurse(const Eigen::Ref<const ArrayX>& netva
     BatchVecX x1 = outputGate(reg_, a1.array()).matrix(); // would be nice to generalize outputGate and activ. member function at initialization?
     // in principle not every regression type might work out to have the bias error term be so simple, but most are constructed this way.
     BatchVecX delta = x1 - yin; // a function of output x
-    MatX gw = delta * xin.matrix().transpose(); // add l2 regularization terms
+    MatX gw = delta * xin.matrix().transpose() + 2.0*l2_lambda_*weights;
     gradnet.segment(0,outputs_) = delta.rowwise().sum().array(); // bias gradient
     gradnet.segment(outputs_, inputs_*outputs_) = Map<ArrayX>(gw.data(), inputs_*outputs_);
-    // pass back delta term...
+    // pass back delta term, which requires un-regularized weights matrix
     BatchVecX wd = weights.transpose() * delta; // different expression for delta, but common to both internal and output layer cases
     return wd;
   } else {
@@ -138,7 +151,7 @@ MatX FfnDyn::Layer::getCostFuncGradRecurse(const Eigen::Ref<const ArrayX>& netva
     BatchVecX delta = e.cwiseProduct(next_layer_->getCostFuncGradRecurse(nextNet, x1, yin, nextGrad));
 
     // ... and after this all seem the same between internal and external
-    MatX gw = delta * xin.matrix().transpose(); // add l2 regularization terms
+    MatX gw = delta * xin.matrix().transpose() + 2.0*l2_lambda_*weights;
     gradnet.segment(0,outputs_) = delta.rowwise().sum().array(); // bias gradient
     gradnet.segment(outputs_, inputs_*outputs_) = Map<ArrayX>(gw.data(), inputs_*outputs_);
     

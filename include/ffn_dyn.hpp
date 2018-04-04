@@ -23,16 +23,27 @@ namespace ceptron {
     int num_weights() const {return size_;} // number of weights in net (size of gradient)
     int numInputs() const;
     int numOutputs() const;
-    ArrayX randomWeights() const; // returns a parameter array with weights (but not biases) randomized, as a suggested initialization
+
+    // set an l2 regularization parameter, which adds a sum-of-squares of weight terms (but not biases) to the cost function.
+    void setL2Reg(double lambda); // technically could be declared const, since only the layers will care
+    
+    // convenience function to return a parameter array with weights (but not biases) randomized,
+    //  as a suggested initialization. numbers are scaled to have a variance that does not depend on number of inputs.
+    //  use std::srand before calling to set the RNG seed.
+    ArrayX randomWeights() const;
+
+    // these methods are the workhorses of the NN, and are implemented recursively on the layers
     double costFunc(const ArrayX& netvals, const BatchVecX& xin, const BatchVecX& yin) const;
     ArrayX costFuncGrad(const ArrayX& netvals, const BatchVecX& xin, const BatchVecX& yin) const;
     VecX prediction(const ArrayX& netvals, const VecX& xin) const;
   private:
-    class Layer;// we need to forward-declare the class
-    // these pointers could probably be unique for simple feed-forward nets
-    std::shared_ptr<Layer> first_layer_;
-    size_t size_; // saving this may be redundant, but useful for quick assertions
-
+    class Layer;// we need to forward-declare the class to declare the smart ptr
+    // this is only a simple feed-forward net, so unique pointers are sufficient.
+    std::unique_ptr<Layer> first_layer_;
+    size_t size_=0; // saving this may be redundant, but useful for quick assertions
+    
+    // ---- recursive definition of layer
+    
     // a "Layer" here refers to the structure that includes the weight matrix taking "inputs_" values and mapping to "outputs_" values, with an activation function on top.
     class Layer
     {
@@ -43,6 +54,8 @@ namespace ceptron {
       template <typename ...Ts> Layer(InternalActivator act, RegressionType reg, size_t ins, size_t n1, size_t n2, Ts... sizes);
       virtual ~Layer() = default;
 
+      void setL2RegRecurse(double l);
+      
       ArrayX randParsRecurse(int) const;
       // recursive calls to retrieve cost function, gradient, prediction
       double costFuncRecurse(const Eigen::Ref<const ArrayX>& net, const BatchVecX& xin, const BatchVecX& yin) const;
@@ -67,8 +80,12 @@ namespace ceptron {
       InternalActivator act_;
       RegressionType reg_; // it's redundant saving this in every layer but it makes things easier for now.
       // we could do a dynamic check on sizeof...(others) to specialize Layer w/ a separate OutputLayer class
-      std::shared_ptr<Layer> next_layer_;
+      std::unique_ptr<Layer> next_layer_;
       // is a pointer to the last layer useful for anything? seems we can get most everything recursively
+
+      // l2 regularization parameter
+      double l2_lambda_=0.;
+    
     }; // class Layer
 
   }; // class FfnDyn
@@ -77,7 +94,7 @@ namespace ceptron {
   template <typename... Ts> FfnDyn::FfnDyn(RegressionType reg, InternalActivator act, Ts... layer_sizes)
   {
     static_assert( sizeof...(layer_sizes) > 1, "network needs more than a single layer to be meaningful" );
-    first_layer_ = std::make_shared<Layer>(act, reg, layer_sizes...);
+    first_layer_ = std::make_unique<Layer>(act, reg, layer_sizes...);
     size_ = first_layer_->getNumWeightsRecurse();
   }
 
@@ -93,7 +110,7 @@ namespace ceptron {
     , reg_(reg)
   {
     // static_assert( sizeof...(Ts) > 0, "this should only get called for intermediate layers" ); // this assert is no longer necessary
-    next_layer_ = std::make_shared<Layer>(act, reg, n1, n2, others...);
+    next_layer_ = std::make_unique<Layer>(act, reg, n1, n2, others...);
     outputs_ = n1;
     // outputs_ = next_layer_->getNumInputs(); // this would also give us the first element of others...
     num_weights_ = outputs_*(inputs_+1);
