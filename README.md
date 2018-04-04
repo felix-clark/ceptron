@@ -12,7 +12,7 @@ Ideally, install the testing utilities with
 
 `cmake ..`
 
-`make`
+`make -j4`
 
 After compilation, a testing trainer can be ran on the animal data:
 

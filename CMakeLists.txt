@@ -48,7 +48,8 @@ set(MY_RELEASE_OPTIONS -O3 -Wall -Wextra -pedantic)
 # this has nothing to do w/ the linkage of the library - just whether to compile our compile-time static NNs for testing
 
 # define our library
-#  we will feasibly have multiple applications using the same lib, but static is generally better if we can get away with it
+#  we will feasibly have multiple applications using the same lib,
+# but static is generally better if we can get away with it (it's default for a reason)
 # this should probably be a build option for CMake. it might be nice to produce both.
 add_library(ceptron STATIC ${SOURCES})
 # add_library(ceptron SHARED ${SOURCES})
