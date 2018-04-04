@@ -47,16 +47,17 @@ ArrayX FfnDyn::randomWeights() const {
 
 // ---- Layer ----
 
-FfnDyn::Layer::Layer(InternalActivator act, RegressionType reg,
-	     size_t ins, size_t outs)
+FfnDyn::Layer::Layer(InternalActivator, RegressionType reg,
+		     size_t ins, size_t outs)
   : inputs_(ins)
   , outputs_(outs)
   , num_weights_(outputs_*(inputs_+1))
   , is_output_(true)
-  , act_(act)
+  // , act_(act)
   , reg_(reg)
 {
   BOOST_LOG_TRIVIAL(trace) << "in output layer constructor with " << ins << " inputs and " << outs << " outputs.";
+  activation_func_ = std::bind(outputGate, reg, std::placeholders::_1);
 }
 
 size_t FfnDyn::Layer::getNumWeightsRecurse() const {
@@ -104,14 +105,14 @@ double FfnDyn::Layer::costFuncRecurse(const Eigen::Ref<const ArrayX>& netvals, c
   a1.colwise() += bias;
 
   double regTerm = l2_lambda_ * weights.array().square().sum();
-
+  BatchVecX x1 = activation_func_(a1);
   if (is_output_) {
     assert( insize == getNumWeights() );
-    BatchVecX x1 = outputGate(reg_, a1); // would be nice to generalize outputGate and activ. member function at initialization?
+    // BatchVecX x1 = outputGate(reg_, a1); // would be nice to generalize outputGate and activ. member function at initialization?
     return regTerm + costFuncVal(reg_, x1, yin); // we need to add regularization terms as well
   } else {
     assert( insize > getNumWeights() );
-    BatchArrayX x1 = activ(act_, a1.array());
+    // BatchArrayX x1 = activ(act_, a1.array());
     const Eigen::Ref<const ArrayX> remNet = netvals.segment(num_weights_, insize-num_weights_); // remaining parameters to be passed on
     return regTerm + next_layer_->costFuncRecurse( remNet, x1, yin ); // add l2 regularization terms for weight matrix
   }
@@ -127,36 +128,26 @@ MatX FfnDyn::Layer::getCostFuncGradRecurse(const Eigen::Ref<const ArrayX>& netva
   const auto insize = netvals.size();
   BatchVecX a1 = weights*xin.matrix();
   a1.colwise() += bias; // a is the output node's value before the activation gate is applied
+
+  BatchVecX x1 = activation_func_(a1.array()).matrix();
+  BatchVecX delta = BatchVecX::Zero(x1.cols(), x1.rows());
   if (is_output_) {
     assert( insize == getNumWeights() );
-    BatchVecX x1 = outputGate(reg_, a1.array()).matrix(); // would be nice to generalize outputGate and activ. member function at initialization?
     // in principle not every regression type might work out to have the bias error term be so simple, but most are constructed this way.
-    BatchVecX delta = x1 - yin; // a function of output x
-    MatX gw = delta * xin.matrix().transpose() + 2.0*l2_lambda_*weights;
-    gradnet.segment(0,outputs_) = delta.rowwise().sum().array(); // bias gradient
-    gradnet.segment(outputs_, inputs_*outputs_) = Map<ArrayX>(gw.data(), inputs_*outputs_);
-    // pass back delta term, which requires un-regularized weights matrix
-    BatchVecX wd = weights.transpose() * delta; // different expression for delta, but common to both internal and output layer cases
-    return wd;
+    // in general this could be a non-trivial function that we will need to get from the RegressionType.
+    delta = x1 - yin; // a function of output x
   } else {
     assert( insize > getNumWeights() );
-    BatchArrayX x1 = activ(act_, a1.array());
-
-    // before this...
-    BatchVecX e = activToD(act_, x1).matrix(); // seems like this could be combined with the above call
-
+    BatchVecX e = activ_to_d_func_(x1.array()).matrix();
     const Eigen::Ref<const ArrayX>& nextNet = netvals.segment(num_weights_, insize-num_weights_);
     Eigen::Ref<ArrayX> nextGrad = gradnet.segment(num_weights_, insize-num_weights_);
     // recursive part: we need the W^T * delta of the next layer to get the delta for this layer
-    BatchVecX delta = e.cwiseProduct(next_layer_->getCostFuncGradRecurse(nextNet, x1, yin, nextGrad));
-
-    // ... and after this all seem the same between internal and external
-    MatX gw = delta * xin.matrix().transpose() + 2.0*l2_lambda_*weights;
-    gradnet.segment(0,outputs_) = delta.rowwise().sum().array(); // bias gradient
-    gradnet.segment(outputs_, inputs_*outputs_) = Map<ArrayX>(gw.data(), inputs_*outputs_);
-    
-    return weights.transpose() * delta;
+    delta = e.cwiseProduct(next_layer_->getCostFuncGradRecurse(nextNet, x1, yin, nextGrad));
   }
+  MatX gw = delta * xin.matrix().transpose() + 2.0*l2_lambda_*weights;
+  gradnet.segment(0,outputs_) = delta.rowwise().sum().array(); // bias gradient
+  gradnet.segment(outputs_, inputs_*outputs_) = Map<ArrayX>(gw.data(), inputs_*outputs_);  
+  return weights.transpose() * delta;
 }
 
 
@@ -167,14 +158,13 @@ VecX FfnDyn::Layer::predictRecurse(const Eigen::Ref<const ArrayX>& netvals, cons
   const auto insize = netvals.size();
   BatchVecX a1 = weights*xin.matrix();// + bias;
   a1.colwise() += bias;
+  BatchVecX x1 = activation_func_(a1.array()).matrix();
   if (is_output_) {
     assert( insize == getNumWeights() );
-    BatchVecX x1 = outputGate(reg_, a1); // would be nice to generalize output gates here as well
     return x1;
-  } else {
-    assert( insize > getNumWeights() );
-    BatchArrayX x1 = activ(act_, a1.array());
-    const Eigen::Ref<const ArrayX> remNet = netvals.segment(num_weights_, insize-num_weights_); // remaining parameters to be passed on
-    return next_layer_->predictRecurse( remNet, x1 ); // add l2 regularization terms for weight matrix
-  }
+  }// else {
+  assert( insize > getNumWeights() );
+  const Eigen::Ref<const ArrayX> remNet = netvals.segment(num_weights_, insize-num_weights_); // remaining parameters to be passed on
+  return next_layer_->predictRecurse( remNet, x1 ); // add l2 regularization terms for weight matrix
+    //}
 }

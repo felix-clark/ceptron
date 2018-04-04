@@ -77,14 +77,22 @@ namespace ceptron {
       // if it was significant we could split this into InputLayer, but that's probably not a big deal.
     
       bool is_output_ = false; // is this the last layer in the net?
-      InternalActivator act_;
       RegressionType reg_; // it's redundant saving this in every layer but it makes things easier for now.
-      // we could do a dynamic check on sizeof...(others) to specialize Layer w/ a separate OutputLayer class
+      // perhaps we don't have to store both the above if we have this activation function stored:
+      std::function<BatchArrayX(BatchArrayX)> activation_func_; // we could similarly store the cost function calculation for the output layer only, so we don't have to save reg_.
+      std::function<BatchArrayX(BatchArrayX)> activ_to_d_func_;
+      
       std::unique_ptr<Layer> next_layer_;
       // is a pointer to the last layer useful for anything? seems we can get most everything recursively
 
       // l2 regularization parameter
       double l2_lambda_=0.;
+      
+      // TODO: dropout probability: probability that a node is zeroed out for a calculation.
+      // when getting cost function and gradient at the same time we need to make the masks identical
+      // this might play poorly w/ calculations that require multiple calculations of the objective function (contour tracing)
+      // we need to scale the values of neurons by (1-p) when extracting predictions
+      // double dropout_p_=0.;
     
     }; // class Layer
 
@@ -106,15 +114,15 @@ namespace ceptron {
 		       Ts... others)
     : inputs_(ins)
     , is_output_(false)
-    , act_(act)
     , reg_(reg)
   {
-    // static_assert( sizeof...(Ts) > 0, "this should only get called for intermediate layers" ); // this assert is no longer necessary
     next_layer_ = std::make_unique<Layer>(act, reg, n1, n2, others...);
     outputs_ = n1;
-    // outputs_ = next_layer_->getNumInputs(); // this would also give us the first element of others...
     num_weights_ = outputs_*(inputs_+1);
     BOOST_LOG_TRIVIAL(trace) << "in intermediate layer constructor with " << inputs_ << " inputs and " << outputs_ << " outputs.";
+
+    activation_func_ = std::bind(activ, act, std::placeholders::_1);
+    activ_to_d_func_ = std::bind(activToD, act, std::placeholders::_1);
   }
 
 } // namespace ceptron
