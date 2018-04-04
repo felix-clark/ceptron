@@ -41,13 +41,24 @@ size_t Layer::getNumEndOutputs() const {
   return is_output_ ? outputs_ : next_layer_->getNumEndOutputs();
 }
 
-double Layer::getCostFunction(const Eigen::Ref<const ArrayX>& netvals, const BatchArrayX& xin, const BatchArrayX& yin) const { // , regularization etc.) 
-  ArrayX bias = netvals.segment(0,outputs_);
+double Layer::getCostFunction(const Eigen::Ref<const ArrayX>& netvals, const BatchArrayX& xin, const BatchArrayX& yin) const { // , regularization etc.)
+  const auto batchsize = xin.cols();
+  // could assert that xin.cols() == yin.cols(). maybe in gradient version
+  BatchVecX bias =
+    Eigen::Map<const VecX>(netvals.segment(0,outputs_).data(), outputs_, 1)
+    * BatchVecX::Ones(1,batchsize);
   MatX weights = Eigen::Map<const MatX>(netvals.segment(outputs_, inputs_*outputs_).data(), outputs_, inputs_);
+  const int thissize = outputs_*(inputs_+1); // this could be computed/saved ahead of time, like at construction
+  const auto insize = netvals.size();
   if (is_output_) {
-    assert( netvals.size() == getNumWeights() );
+    assert( insize == getNumWeights() );
+    // TODO: implement runtime regression here
   } else {
-    assert( netvals.size() > getNumWeights() );
+    assert( insize > getNumWeights() );
+    return next_layer_->
+      getCostFunction( netvals.segment(thissize,
+				       insize-thissize),
+		       activ(act_, (weights*xin.matrix() + bias).array()), yin );
   }
 }
 

@@ -1,6 +1,6 @@
 #pragma once
+#include "global.hpp"
 // class implementing activation functions and their derivatives
-/// as of now we don't actually need to include global.hpp
 #include <Eigen/Core> // math functions?
 // #include <Eigen/Dense>
 // #include <type_traits>
@@ -24,6 +24,15 @@ enum class InternalActivator {Logit, Tanh, ReLU, Softplus, LReLU};
 // though we did have trouble working with Eigen::ArrayBase<Derived>, even at times getting incorrect values despite compilation (!)
 
 
+
+// a version w/ runtime lookup of the activation choice
+// there's no reason to not use the dynamic BatchArrayX, except perhaps for when a single BatchArray is passed ?
+// it may end up being feasible to do the calculations in-place in some cases, but commiting to that model may not be worth the loss of potential flexibility
+ceptron::BatchArrayX activ(InternalActivator, const Eigen::Ref<const ceptron::BatchArrayX>&);
+ceptron::BatchArrayX activToD(InternalActivator,  const Eigen::Ref<const ceptron::BatchArrayX>&);
+
+
+
 template <InternalActivator Act>
 class ActivFunc
 {
@@ -37,6 +46,7 @@ public:
   //  which might be necessary for the less nice activation choices
   // we could consider returning both the activated layer and it's derivative simultaneously
 };
+
 
 // ---- logit ----
 
@@ -77,7 +87,8 @@ ArrT ActivFunc<InternalActivator::Tanh>::activToD(const ArrT& act) /*const*/ {
 template <>
 template <typename ArrT>
 ArrT ActivFunc<InternalActivator::ReLU>::activ(const ArrT& in) /*const*/ {
-  return (in >= 0).select(in, ArrT::Zero());
+  // the methods evaluating the size of in shouldn't be called when using static-sized inputs -- they're a redundant part of the interface for convenience
+  return (in >= 0).select(in, ArrT::Zero(in.cols(), in.rows()));
 }
 
 template <>
@@ -91,7 +102,8 @@ ArrT ActivFunc<InternalActivator::ReLU>::activToD(const ArrT& act) /*const*/ {
   // return (act > 0).select(ArrT::Ones(),
   // 			  (act < 0).select(ArrT::Zero(),
   // 					   0.5*ArrT::Ones())); // this also fails
-  return (act > 0).select(ArrT::Ones(), ArrT::Zero());
+  return (act > 0).select(ArrT::Ones(act.cols(), act.rows()),
+			  ArrT::Zero(act.cols(), act.rows()));
 }
 
 // ---- softplus ----
@@ -133,3 +145,4 @@ ArrT ActivFunc<InternalActivator::LReLU>::activToD(const ArrT& act) /*const*/ {
   // 			  (act < 0).select(alpha*ArrT::Ones(),
   // 					   0.5*(1+alpha)*ArrT::Ones()));
 }
+

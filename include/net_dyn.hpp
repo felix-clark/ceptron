@@ -22,13 +22,10 @@ class FfnDyn
 {
 public:
   template <typename...Ts> FfnDyn(RegressionType reg, InternalActivator act, Ts... layer_sizes);
-  // to correctly unpack variadic parameter packs we need to use templates, which it would be nice to avoid for these static cases.
   ~FfnDyn() = default;
   FfnDyn(const FfnDyn&) = delete; // we do some non-trivial memory operations w/ shared_ptrs so don't allow copying (not sure if it works)
-  // if we make this functional so that it doesn't own the data, we might not have to worry about copying
   // FfnDyn(FfnDyn&&) = delete; // move ops are not defined when we implement or delete the copy-constructor
-  // might need to disable both assignment and move varieties of operator= too?
-  // although if we define it so make the net sizes and values the same then that might be fine with this organization
+  // might need to disable operator= too?
   int num_weights() const {return size_;} // number of weights in net (size of gradient)
   size_t getNumOutputs() const;
   double costFunc(const Eigen::Ref<const ArrayX>& netvals, const BatchArrayX& xin, const BatchArrayX& yin) const;
@@ -47,7 +44,7 @@ class Layer
 public:
    // constructor for output layer
   Layer(InternalActivator act, RegressionType reg, size_t ins, size_t outs);
-  // constructor for internal
+  // recursive constructor for internal layers
   template <typename ...Ts> Layer(InternalActivator act, RegressionType reg, size_t ins, size_t n1, size_t n2, Ts... sizes);
   virtual ~Layer() = default;
 
