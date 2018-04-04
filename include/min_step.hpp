@@ -5,14 +5,11 @@
 #include <Eigen/Dense>
 
 namespace ceptron {
-  // template <int N=Eigen::Dynamic>
   using fg_t = std::function<func_grad_res<>(ArrayX)>;
 
   // these may not be used elsewhere yet... keep them local?
   /// we will move away from this and towards a function returning both func and gradient result
-  // template <int N=Eigen::Dynamic>
   using func_t = std::function<double(ArrayX)>;
-  // template <int N=Eigen::Dynamic>
   using grad_t = std::function<ArrayX(ArrayX)>;
 
 
@@ -33,7 +30,7 @@ namespace ceptron {
     virtual ~IMinStep(){}
     // step_pars returns the next value of the parameter vector
     virtual ArrayX getDeltaPar( func_t, grad_t, ArrayX ) = 0;
-    // virtual ArrayX getDeltaPar( const ArrayX&, fg_t/*<N>*/, func_t ) = 0;
+    // virtual ArrayX getDeltaPar( const ArrayX&, fg_t, func_t ) = 0;
     // remove any cached information, which some minimizers use to optimize the step rates
     virtual void resetCache() = 0;
   };
@@ -41,13 +38,12 @@ namespace ceptron {
   // ---- basic gradient descent ----
 
   // template <int N>
-  class GradientDescent : public IMinStep/*<N>*/
+  class GradientDescent : public IMinStep
   {
   public:
-    GradientDescent(/*int npar*/) {}
-    ~GradientDescent() {};
+    GradientDescent() = default;
+    ~GradientDescent() = default;
     virtual ArrayX getDeltaPar( func_t, grad_t, ArrayX ) override;
-    // virtual ArrayX getDeltaPar( const ArrayX&, fg_t/*<N>*/, func_t ) override;
     virtual void resetCache() override {}; // simple gradient descent uses no cache
     void setLearnRate(double lr) {learn_rate_ = lr;}
   private:
@@ -56,13 +52,12 @@ namespace ceptron {
 
   // ---- adding momentum term to naive gradient descent to help with "canyons" ----
 
-  // template <int N>
-  class GradientDescentWithMomentum : public IMinStep/*<N>*/
+  class GradientDescentWithMomentum : public IMinStep
   {
   public:
     GradientDescentWithMomentum(int npar)
       : momentum_term_(ArrayX::Zero(npar)) {};
-    ~GradientDescentWithMomentum() {};
+    ~GradientDescentWithMomentum() = default;
     virtual ArrayX getDeltaPar( func_t, grad_t, ArrayX ) override;
     virtual void resetCache() override {momentum_term_.setZero();}
     void setLearnRate(double lr) {learn_rate_ = lr;}
@@ -76,21 +71,20 @@ namespace ceptron {
   // // ---- Nesterov's accelerated gradient ----
   // // an improved version of the momentum addition
 
-  // template <int N>
-  class AcceleratedGradient : public IMinStep/*<N>*/
+  class AcceleratedGradient : public IMinStep
   {
   public:
     AcceleratedGradient(int npar)
       : momentum_term_(ArrayX::Zero(npar)) {};
     // AcceleratedGradient(double learn_rate=0.01,
     // 		      double momentum_scale=0.875);
-    ~AcceleratedGradient() {};
+    ~AcceleratedGradient() = default;
     virtual ArrayX getDeltaPar( func_t, grad_t, ArrayX ) override;
     virtual void resetCache() override {momentum_term_.setZero();}
     void setLearnRate(double lr) {learn_rate_ = lr;}
     void setMomentumScale(double ms) {momentum_scale_ = ms;}
   private:
-    ArrayX momentum_term_;// = ArrayX::Zero();
+    ArrayX momentum_term_;
     double learn_rate_ = 0.005;
     double momentum_scale_ = 0.875;
   };
@@ -98,25 +92,23 @@ namespace ceptron {
   // ---- ADADELTA has an adaptive, unitless learning rate ----
   // it is probably often a good first choice because it tends to be insensitive to the hyperparameters
 
-  // template <int N>
-  class AdaDelta : public IMinStep/*<N>*/
+  class AdaDelta : public IMinStep
   {
   public:
-    AdaDelta(int npar) {
-      accum_grad_sq_ = ArrayX::Zero(npar);
-      accum_dpar_sq_ = ArrayX::Zero(npar);
-      last_delta_par_ = ArrayX::Zero(npar);
-    };
-    ~AdaDelta() {};
+    AdaDelta(int npar)
+      : accum_grad_sq_(ArrayX::Zero(npar))
+      , accum_dpar_sq_(ArrayX::Zero(npar))
+      , last_delta_par_(ArrayX::Zero(npar)) {};
+    ~AdaDelta() = default;
     virtual ArrayX getDeltaPar( func_t, grad_t, ArrayX ) override;
     virtual void resetCache() override;
     void setDecayScale(double ds) {decay_scale_ = ds;}
     void setLearnRate(double lr) {learn_rate_ = lr;}
     void setEpsilon(double ep) {ep_ = ep;}
   private:
-    ArrayX accum_grad_sq_;// = ArrayX::Zero();
-    ArrayX accum_dpar_sq_;// = ArrayX::Zero();
-    ArrayX last_delta_par_;// = ArrayX::Zero();
+    ArrayX accum_grad_sq_;
+    ArrayX accum_dpar_sq_;
+    ArrayX last_delta_par_;
     double decay_scale_ = 0.9375; // similar to window average of last 16 values. 0.875 for scale of 8 previous values
     double learn_rate_ = 1.0; // a default value that can be adjusted down if necessary
     double ep_ = 1e-6;
@@ -126,16 +118,16 @@ namespace ceptron {
   // ---- BFGS ----
   // a quasi-Newton method that uses an approximation for the Hessian, but uses a lot of memory to store it (N^2)
 
-  // template <int N>
-  class Bfgs : public IMinStep/*<N>*/
+  class Bfgs : public IMinStep
   {
   public:
-    Bfgs(int npar) {hessian_approx_=MatX::Identity(npar,npar);};
+    Bfgs(int npar)
+      : hessian_approx_(MatX::Identity(npar,npar)) {};
     ~Bfgs() {};
     virtual ArrayX getDeltaPar( func_t, grad_t, ArrayX ) override;
     virtual void resetCache() override;
   private:
-    MatX hessian_approx_;// = decltype(hessian_approx_)::Identity();
+    MatX hessian_approx_;
     double learn_rate_ = 1.0;
   };
 

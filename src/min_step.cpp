@@ -8,109 +8,104 @@ namespace {
 
 using Eigen::sqrt;
 
+namespace ceptron {
 
-// will perform a 1D simplex minimum search to quickly find a step size
-// could possibly use instead a golden search on the interval (0,1)
-double ceptron::line_search( std::function<double(double)> f, double xa, double xb, size_t maxiter, double tol ) {
-  constexpr double alpha = 1.0;
-  constexpr double gamma = 2.0;
-  constexpr double rho = 0.5;
-  // constexpr double sigma = 0.5;
-  constexpr double sigma = 0.25; // if this is equal to rho then the 1D algorithm has some redundant checks
+  // will perform a 1D simplex minimum search to quickly find a step size
+  // could possibly use instead a golden search on the interval (0,1)
+  double line_search( std::function<double(double)> f, double xa, double xb, size_t maxiter, double tol ) {
+    constexpr double alpha = 1.0;
+    constexpr double gamma = 2.0;
+    constexpr double rho = 0.5;
+    // constexpr double sigma = 0.5;
+    constexpr double sigma = 0.25; // if this is equal to rho then the 1D algorithm has some redundant checks
 
-  double fa = f(xa);
-  double fb = f(xb);
+    double fa = f(xa);
+    double fb = f(xb);
 
-  for (size_t i_iter=0; i_iter<maxiter; ++i_iter ) {
-    // check condition for standard deviation of f values being small, either absolutely or relatively depending on how large f is
-    if (std::isnan(fa) || std::isnan(fb)) {
-      // don't waste time looping if the values are nonsense
-      break;
-    }
-    if ( (fa-fb)*(fa-fb) < tol*tol*(1.0 + (fa+fb)*(fa+fb)) ) {
-      // tolerance reached
-      BOOST_LOG_TRIVIAL(trace) << "exiting line search due to tolerance reached";
-      break;
-    }
-    if (fa > fb) {
-      std::swap( xa, xb );
-      std::swap( fa, fb );
-    }
-    if ( !( fa <= fb) ) {
-      // we shouldn't get here -- possibly NaNs?
-      BOOST_LOG_TRIVIAL(warning) << "f(xa) = " << fa << ", f(xb) = " << fb;
-      BOOST_LOG_TRIVIAL(warning) << "iteration number " << i_iter;
-    }
-    assert( !(fa > fb) ); // xa is now the best value
-    double xr = xa + alpha*(xa - xb); // reflected
-    double fr = f(xr);
-    if (fr < fa) {
-      // reflected point is best so far, replace worst point with the either it or this expanded point:
-      double xe = xa + gamma*(xr - xa); // = xa + gamma*alpha*(xa-xb)
-      double fe = f(xe);
-      if (fe < fr) {
-	xb = xe;
-	fb = fe;
-      } else {
-	xb = xr;
-	fb = fr;
+    for (size_t i_iter=0; i_iter<maxiter; ++i_iter ) {
+      // check condition for standard deviation of f values being small, either absolutely or relatively depending on how large f is
+      if (std::isnan(fa) || std::isnan(fb)) {
+	// don't waste time looping if the values are nonsense
+	break;
       }
-      continue; // go to next step of loop
+      if ( (fa-fb)*(fa-fb) < tol*tol*(1.0 + (fa+fb)*(fa+fb)) ) {
+	// tolerance reached
+	BOOST_LOG_TRIVIAL(trace) << "exiting line search due to tolerance reached";
+	break;
+      }
+      if (fa > fb) {
+	std::swap( xa, xb );
+	std::swap( fa, fb );
+      }
+      if ( !( fa <= fb) ) {
+	// we shouldn't get here -- possibly NaNs?
+	BOOST_LOG_TRIVIAL(warning) << "f(xa) = " << fa << ", f(xb) = " << fb;
+	BOOST_LOG_TRIVIAL(warning) << "iteration number " << i_iter;
+      }
+      assert( !(fa > fb) ); // xa is now the best value
+      double xr = xa + alpha*(xa - xb); // reflected
+      double fr = f(xr);
+      if (fr < fa) {
+	// reflected point is best so far, replace worst point with the either it or this expanded point:
+	double xe = xa + gamma*(xr - xa); // = xa + gamma*alpha*(xa-xb)
+	double fe = f(xe);
+	if (fe < fr) {
+	  xb = xe;
+	  fb = fe;
+	} else {
+	  xb = xr;
+	  fb = fr;
+	}
+	continue; // go to next step of loop
+      }
+      assert( !(fr < fa) );
+      // contracted point (which is just average)
+      double xc = xa + rho*(xb - xa);
+      double fc = f(xc);
+      // assert( fc == fc );
+      if (fc < fb) {
+	// replace worst point with contracted one
+	xb = xc;
+	fb = fc;
+	continue;
+      }
+      // shrink
+      // in 1D this is almost redundant with the contraction
+      // will change value of sigma from wikipedia's recommended value to change this
+      // it's actually a problem if we get here: it means there's a local maximum between xa and xb
+      // and we do indeed get here...
+      xb = xa + sigma*(xb - xa);
+      fb = f(xb);
     }
-    assert( !(fr < fa) );
-    // contracted point (which is just average)
-    double xc = xa + rho*(xb - xa);
-    double fc = f(xc);
-    // assert( fc == fc );
-    if (fc < fb) {
-      // replace worst point with contracted one
-      xb = xc;
-      fb = fc;
-      continue;
-    }
-    // shrink
-    // in 1D this is almost redundant with the contraction
-    // will change value of sigma from wikipedia's recommended value to change this
-    // it's actually a problem if we get here: it means there's a local maximum between xa and xb
-    // and we do indeed get here...
-    xb = xa + sigma*(xb - xa);
-    fb = f(xb);
+
+    return fb < fa ? xb : xa;
   }
 
-  return fb < fa ? xb : xa;
-}
 
+  ArrayX GradientDescent::getDeltaPar( func_t, grad_t g, ArrayX pars ) {
+    return - learn_rate_ * g(pars);
+  }
 
-// template <int N>
-ArrayX ceptron::GradientDescent/*<N>*/::getDeltaPar( func_t, grad_t g, ArrayX pars ) {
-  return - learn_rate_ * g(pars);
-}
+  ArrayX GradientDescentWithMomentum::getDeltaPar( func_t, grad_t g, ArrayX pars ) {
+    momentum_term_ = momentum_scale_ * momentum_term_ + learn_rate_ * g(pars);
+    return - momentum_term_;
+  }
 
-// template <int N>
-ArrayX ceptron::GradientDescentWithMomentum/*<N>*/::getDeltaPar( func_t, grad_t g, ArrayX pars ) {
-  momentum_term_ = momentum_scale_ * momentum_term_ + learn_rate_ * g(pars);
-  return - momentum_term_;
-}
-
-namespace ceptron {
-  // template <int N>
-  ArrayX AcceleratedGradient/*<N>*/::getDeltaPar( func_t, grad_t g, ArrayX pars ) {
+  ArrayX AcceleratedGradient::getDeltaPar( func_t, grad_t g, ArrayX pars ) {
     momentum_term_ *= momentum_scale_; // exponentially reduce momentum term
     momentum_term_ += learn_rate_ * g(pars - momentum_term_);
     // momentum_term_ += learn_rate_ * g(pars - 0.5*momentum_term_); // using an average between new and old points can help with convergence on rosenbrock function
     return - momentum_term_;
   }
 
-  // template <int N>
-  void AdaDelta/*<N>*/::resetCache()
+  void AdaDelta::resetCache()
   {
     accum_grad_sq_.setZero();
     accum_dpar_sq_.setZero();
     last_delta_par_.setZero();
   }
 
-  // template <int N>
-  ArrayX AdaDelta/*<N>*/::getDeltaPar( func_t /*f*/, grad_t g, ArrayX pars )
+  ArrayX AdaDelta::getDeltaPar( func_t /*f*/, grad_t g, ArrayX pars )
   {
     ArrayX grad = g(pars); // an improvement might be to use an accelerated version
     // element-wise learn rate
@@ -148,13 +143,11 @@ namespace ceptron {
   }
 
 
-  // template <int N>
-  void Bfgs/*<N>*/::resetCache()
+  void Bfgs::resetCache()
   {
     hessian_approx_.setIdentity();
   }
 
-  // // template <int N>
   ArrayX Bfgs::getDeltaPar( func_t f, grad_t g, ArrayX par )
   {
     VecX grad = g(par).matrix();
