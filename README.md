@@ -25,7 +25,7 @@ cmake ..
 make -j4
 ```
 
-Additional configuration options can be passed to cmake at the configuration stage. For instance, to compile with `clang` instead of g++, replace the 3rd line with `cmake .. -DCMAKE_CXX_COMPILER`.
+Additional configuration options can be passed to cmake at the configuration stage. For instance, to compile with `clang` instead of g++, replace the 3rd line with `cmake .. -DCMAKE_CXX_COMPILER clang++`.
 
 ## 4. Testing
 
