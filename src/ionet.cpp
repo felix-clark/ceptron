@@ -1,5 +1,6 @@
 #include "ionet.hpp"
-#include <boost/log/trivial.hpp>
+#include "log.hpp"
+#include <fstream>
 
 namespace {
   using namespace ceptron;
@@ -9,7 +10,7 @@ void ceptron::toFile(const ceptron::ArrayX& net, const std::string& fname) {
   // ios::trunc erases any previous content in the file.
   std::ofstream fout(fname , std::ios::binary | std::ios::trunc );
   if (!fout.is_open()) {
-    BOOST_LOG_TRIVIAL(error) << "could not open file " << fname << " for writing.";
+    LOG_ERROR("could not open file " << fname << " for writing.");
     return;
   }
   for (int i=0; i<net.size(); ++i) {
@@ -24,7 +25,7 @@ ceptron::ArrayX ceptron::fromFile(const std::string& fname) {
   // some metadata at the top might be nice for verification, but now that we're just using raw arrays perhaps it's less necessary
   std::ifstream fin(fname, std::ios::binary);
   if (!fin.is_open()) {
-    BOOST_LOG_TRIVIAL(error) << "could not open file " << fname << " for reading.";
+    LOG_ERROR("could not open file " << fname << " for reading.");
     throw std::runtime_error("failed to open file");
   }
   std::string line;

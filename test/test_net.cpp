@@ -2,9 +2,7 @@
 #include "slfn.hpp"
 #include "ffn_dyn.hpp"
 #include "ionet.hpp"
-#include <boost/log/core.hpp>
-#include <boost/log/trivial.hpp>
-#include <boost/log/expressions.hpp>
+#include "log.hpp"
 #include <Eigen/Core>
 #include <iostream>
 #include <functional>
@@ -31,12 +29,11 @@ void check_gradient(Net& net, const ArrayX& p, const BatchVec<Net::inputs>& xin,
   double fval = fgvals.f; // don't think we actually need this, but it might be a nice check
   ArrayX evalgrad = fgvals.g;
 
-  BOOST_LOG_TRIVIAL(trace) << "about to try to compute numerical derivative";
+  LOG_TRACE("about to try to compute numerical derivative");
   
   ArrayX df(Npar);// maybe can do this slickly with colwise() or rowwise() ?
   for (size_t i_f=0; i_f<Npar; ++i_f) {
     ArrayX dp = ArrayX::Zero(Npar);
-    // BOOST_LOG_TRIVIAL(trace) << "declaring dpi";
     double dpi = ep*sqrt(1.0 + p(i_f)*p(i_f));
     dp(i_f) = dpi;
     double fplusi = costFunc(net, p+dp, xin, yin);
@@ -44,18 +41,18 @@ void check_gradient(Net& net, const ArrayX& p, const BatchVec<Net::inputs>& xin,
     df(i_f) = (fplusi - fminusi)/(2*dpi);
   }
   
-  BOOST_LOG_TRIVIAL(trace) << "about to check with analytic gradient";
+  LOG_TRACE("about to check with analytic gradient");
 
   // now check this element-by element
   double sqSumDiff = (df-evalgrad).square().sum();
   if ( sqSumDiff > tol*tol*1
        || !df.isFinite().all()
        || !evalgrad.isFinite().all()) {
-    BOOST_LOG_TRIVIAL(warning) << "gradient check failed at tolerance level " << tol << " (" << sqrt(sqSumDiff) << ")";
-    BOOST_LOG_TRIVIAL(warning) << "f(p) = " << fval;
-    BOOST_LOG_TRIVIAL(warning) << "numerical derivative = " << df.transpose().format(my_fmt);
-    BOOST_LOG_TRIVIAL(warning) << "analytic gradient = " << evalgrad.transpose().format(my_fmt);
-    BOOST_LOG_TRIVIAL(warning) << "difference = " << (df - evalgrad).transpose().format(my_fmt);
+    LOG_WARNING("gradient check failed at tolerance level " << tol << " (" << sqrt(sqSumDiff) << ")");
+    LOG_WARNING("f(p) = " << fval);
+    LOG_WARNING("numerical derivative = " << df.transpose().format(my_fmt));
+    LOG_WARNING("analytic gradient = " << evalgrad.transpose().format(my_fmt));
+    LOG_WARNING("difference = " << (df - evalgrad).transpose().format(my_fmt));
   }
   
 }
@@ -66,12 +63,12 @@ void check_gradient(const FfnDyn& net, const ArrayX& p, const BatchVecX& xin, co
   assert( yin.rows() == net.numOutputs() );
   const int Npar = net.num_weights();
   assert( p.size() == Npar );
-  BOOST_LOG_TRIVIAL(trace) << "about to call costFunc";
+  LOG_TRACE("about to call costFunc");
   double fval = net.costFunc(p, xin, yin);
-  BOOST_LOG_TRIVIAL(trace) << "about to call costFuncGrad";
+  LOG_TRACE("about to call costFuncGrad");
   ArrayX gradval = net.costFuncGrad(p, xin, yin);
 
-  BOOST_LOG_TRIVIAL(trace) << "about to try to compute numerical derivative";
+  LOG_TRACE("about to try to compute numerical derivative");
   
   ArrayX df(Npar);// maybe can do this assignment slickly with colwise() or rowwise() ?
   for (int i_f=0; i_f<Npar; ++i_f) {
@@ -83,28 +80,26 @@ void check_gradient(const FfnDyn& net, const ArrayX& p, const BatchVecX& xin, co
     df(i_f) = (fplusi - fminusi)/(2*dpi);
   }
   
-  BOOST_LOG_TRIVIAL(trace) << "about to check with analytic gradient";
+  LOG_TRACE("about to check with analytic gradient");
 
   // now check this element-by element
   double sqSumDiff = (df-gradval).square().sum();
   if ( sqSumDiff > tol*tol*1
        || !df.isFinite().all()
        || !gradval.isFinite().all()) {
-    BOOST_LOG_TRIVIAL(warning) << "gradient check failed at tolerance level " << tol << " (" << sqrt(sqSumDiff) << ")";
-    BOOST_LOG_TRIVIAL(warning) << "f(p) = " << fval;
-    BOOST_LOG_TRIVIAL(warning) << "numerical derivative = " << df.transpose().format(my_fmt);
-    BOOST_LOG_TRIVIAL(warning) << "analytic gradient = " << gradval.transpose().format(my_fmt);
-    BOOST_LOG_TRIVIAL(warning) << "difference = " << (df - gradval).transpose().format(my_fmt);
+    LOG_WARNING("gradient check failed at tolerance level " << tol << " (" << sqrt(sqSumDiff) << ")");
+    LOG_WARNING("f(p) = " << fval);
+    LOG_WARNING("numerical derivative = " << df.transpose().format(my_fmt));
+    LOG_WARNING("analytic gradient = " << gradval.transpose().format(my_fmt));
+    LOG_WARNING("difference = " << (df - gradval).transpose().format(my_fmt));
   }
   
 }
 
 int main(int, char**) {
-  // we can adjust the log level like so:
-  namespace logging = boost::log;
-  logging::core::get()->set_filter
-    (logging::trivial::severity >= logging::trivial::debug);
 
+  SET_LOG_LEVEL(debug);
+  
   // set seed for random initialization (Eigen uses std::rand())
   std::srand( 3490 ); // could also use std::time(nullptr) from ctime
   
@@ -131,10 +126,10 @@ int main(int, char**) {
   
   {
     FfnDyn netd(Reg, Act, Nin, Nh, Nout);
-    BOOST_LOG_TRIVIAL(debug) << "size of dynamic net: " << netd.num_weights();
+    LOG_DEBUG("size of dynamic net: " << netd.num_weights());
     ArrayX randpar = netd.randomWeights(); //ArrayX::Random(netd.num_weights());
     netd.setL2Reg(0.01);
-    // BOOST_LOG_TRIVIAL(debug) << randpar; 
+    // LOG_DEBUG(randpar);
     check_gradient(netd, randpar, input, output);
   }
   // to speed up compilation we can disable the static tests while we develop the dynamic case
@@ -149,11 +144,11 @@ int main(int, char**) {
   
     // we need to change the interface to let us spit out intermediate-layer activations
     // "activation" only has a useful debug meaning for a single layer
-    BOOST_LOG_TRIVIAL(info) << "input data is:\n" << input.format(my_fmt);
-    BOOST_LOG_TRIVIAL(info) << "first weights:\n" << testNet.getFirstSynapses(pars).format(my_fmt);
-    BOOST_LOG_TRIVIAL(info) << "second weights:\n" << testNet.getSecondSynapses(pars).format(my_fmt);
-    // BOOST_LOG_TRIVIAL(info) << "net value of array:\n" << testNet.getNetValue().format(my_fmt);
-    BOOST_LOG_TRIVIAL(info) << "array has " << pars.size() << " parameters.";
+    LOG_INFO("input data is:\n" << input.format(my_fmt));
+    LOG_INFO("first weights:\n" << testNet.getFirstSynapses(pars).format(my_fmt));
+    LOG_INFO("second weights:\n" << testNet.getSecondSynapses(pars).format(my_fmt));
+    // LOG_INFO("net value of array:\n" << testNet.getNetValue().format(my_fmt));
+    LOG_INFO("array has " << pars.size() << " parameters.");
 
     // do we need to feed in the Net template parameter, or can it be inferred from testNet?
     check_gradient( testNet, pars, input, output );
@@ -173,16 +168,16 @@ int main(int, char**) {
     toFile(pars, "copytest.net");
     decltype(pars) parsCopy = fromFile("copytest.net");
     if ( (pars != parsCopy).any() ) {
-      BOOST_LOG_TRIVIAL(warning) << "loaded net is not the same!";
-      BOOST_LOG_TRIVIAL(warning) << "original:\n" << pars.transpose().format(my_fmt);
-      BOOST_LOG_TRIVIAL(warning) << "copy:\n" << parsCopy.transpose().format(my_fmt);
+      LOG_WARNING("loaded net is not the same!");
+      LOG_WARNING("original:\n" << pars.transpose().format(my_fmt));
+      LOG_WARNING("copy:\n" << parsCopy.transpose().format(my_fmt));
       auto diff = pars - parsCopy;
-      BOOST_LOG_TRIVIAL(warning) << "difference:\n" << diff.transpose().format(my_fmt);
+      LOG_WARNING("difference:\n" << diff.transpose().format(my_fmt));
     }
   } // static net test
 
 #else
-  BOOST_LOG_TRIVIAL(info) << "skipping static nets.";
+  LOG_INFO("skipping static nets.");
 #endif // ifndef NO_STATIC
   
   return 0;

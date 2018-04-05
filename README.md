@@ -2,7 +2,8 @@
 
 A machine-learning playground
 
-Requirements: Eigen, boost(log)
+Requirements: Eigen
+Optional: Boost.Log
 
 Ideally, install the testing utilities with
 

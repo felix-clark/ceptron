@@ -3,9 +3,7 @@
 #include "train_dyn.hpp"
 #include "slfn.hpp"
 #include "ffn_dyn.hpp"
-#include <boost/log/core.hpp>
-#include <boost/log/trivial.hpp>
-#include <boost/log/expressions.hpp>
+#include "log.hpp"
 #include <string>
 #include <utility>
 #include <vector>
@@ -27,7 +25,6 @@ namespace {
   constexpr InternalActivator Act=InternalActivator::Tanh;
   using Net = SlfnStatic<Nin, Nout, Nh, Reg, Act>;
 
-  namespace logging = boost::log;
   using std::string;
   using std::pair;
   using std::vector;
@@ -62,16 +59,16 @@ void printPredictions(const FfnDyn& net, const ArrayX& pars) {
     {"pikachu", x_pikachu()}
   };
   for (const auto& animal : animals) {
-    BOOST_LOG_TRIVIAL(info) << animal.first << ":";
+    LOG_INFO(animal.first << ":");
     ArrayX pred = net.prediction(pars, animal.second).array();
     auto candidateIndices = (pred > 0.2);
     for (size_t i=0; i<Nout; ++i) {
       if (candidateIndices[i]) {
-	BOOST_LOG_TRIVIAL(info) << "  " << toString(i+1) << "  " << pred[i]*100 << "%";
+	LOG_INFO("  " << toString(i+1) << "  " << pred[i]*100 << "%");
       }
     }
     // a full printout
-    BOOST_LOG_TRIVIAL(trace) << animal.first << ": " << pred.transpose();
+    LOG_TRACE(animal.first << ": " << pred.transpose());
   }
 }
 
@@ -93,26 +90,25 @@ void printPredictions(const Net& net, const ArrayX& pars) {
     {"pikachu", x_pikachu()}
   };
   for (const auto& animal : animals) {
-    BOOST_LOG_TRIVIAL(info) << animal.first << ":";
+    LOG_INFO(animal.first << ":");
     ArrayX pred = prediction(net, pars, animal.second).array();
     auto candidateIndices = (pred > 0.2);
     for (size_t i=0; i<Nout; ++i) {
       if (candidateIndices[i]) {
-	BOOST_LOG_TRIVIAL(info) << "  " << toString(i+1) << "  " << pred[i]*100 << "%";
+	LOG_INFO("  " << toString(i+1) << "  " << pred[i]*100 << "%");
       }
     }
     // a full printout
-    BOOST_LOG_TRIVIAL(trace) << animal.first << ": " << pred.transpose();
+    LOG_TRACE(animal.first << ": " << pred.transpose());
   }
 }
 
 
 int main(int argc, char** argv) {
-  logging::core::get()->set_filter
-    (logging::trivial::severity >= logging::trivial::debug);
+  SET_LOG_LEVEL(debug);
   
   if (argc <= 1) {
-    BOOST_LOG_TRIVIAL(info) << "usage: " << argv[0] << " <path>/<to>/zoo.data";
+    LOG_INFO("usage: " << argv[0] << " <path>/<to>/zoo.data");
     return 1;
   }
   string datafile = argv[1];
@@ -134,20 +130,20 @@ int main(int argc, char** argv) {
     ArrayX parsd = initparsd;
     AdaDelta msd(netd.num_weights());
     
-    BOOST_LOG_TRIVIAL(info) << std::setprecision(4); // set this once
-    BOOST_LOG_TRIVIAL(info) << "running test on dynamic version";
-    BOOST_LOG_TRIVIAL(debug) << "parameter space has dimension " << netd.num_weights();
+    LOG_INFO(std::setprecision(4)); // set this once
+    LOG_INFO("running test on dynamic version");
+    LOG_DEBUG("parameter space has dimension " << netd.num_weights());
     
     for (int i_ep=0; i_ep<numEpochs; ++i_ep) {
       if (i_ep % (numEpochs/2) == 0) {
-	BOOST_LOG_TRIVIAL(info) << "beginning " << i_ep << "th epoch";
-	BOOST_LOG_TRIVIAL(info) << "cost function: " << netd.costFunc(parsd, xb, yb);
-	BOOST_LOG_TRIVIAL(debug) << "mid-training predictions:";
+	LOG_INFO("beginning " << i_ep << "th epoch");
+	LOG_INFO("cost function: " << netd.costFunc(parsd, xb, yb));
+	LOG_DEBUG("mid-training predictions:");
 	printPredictions(netd, parsd);
       }
       trainFfnDyn(netd, parsd, msd, xb, yb );
     }
-    BOOST_LOG_TRIVIAL(info) << "post-training predictions:";
+    LOG_INFO("post-training predictions:");
     printPredictions(netd, parsd);
   } // dynamic training
   
@@ -163,28 +159,28 @@ int main(int argc, char** argv) {
     net.setL2Reg(l2reg);
   
     // from a programming perspective it seems preferable to not initialize to random variables, but we have to make sure to remember to randomize every time.
-    BOOST_LOG_TRIVIAL(info) << "";
-    BOOST_LOG_TRIVIAL(info) << "running test on static version";
-    BOOST_LOG_TRIVIAL(info) << "parameter space has dimension " << Net::size;
+    LOG_INFO("");
+    LOG_INFO("running test on static version");
+    LOG_INFO("parameter space has dimension " << Net::size);
     // GradientDescent minstep(Net::size); // this could be a choice of a different minimizer
     // AcceleratedGradient minstep(Net::size);
     AdaDelta minstep(Net::size); // this is a decent first choice since it is not supposed to depend strongly on hyperparameters
 
     for (int i_ep=0; i_ep<numEpochs; ++i_ep) {
       if (i_ep % (numEpochs/2) == 0) {
-	BOOST_LOG_TRIVIAL(info) << "beginning " << i_ep << "th epoch";
-	BOOST_LOG_TRIVIAL(info) << "cost function: " << costFunc(net, pars, xb, yb);
-	BOOST_LOG_TRIVIAL(debug) << "mid-training predictions:";
+	LOG_INFO("beginning " << i_ep << "th epoch");
+	LOG_INFO("cost function: " << costFunc(net, pars, xb, yb));
+	LOG_DEBUG("mid-training predictions:");
 	printPredictions(net, pars);
       }
       trainSlfnStatic<Net>( net, pars, minstep, xb, yb );
     }
 
-    BOOST_LOG_TRIVIAL(info) << "post-training predictions:";
+    LOG_INFO("post-training predictions:");
     printPredictions(net, pars);
   } // static training
 #else
-  BOOST_LOG_TRIVIAL(info) << "Skipped testing static nets.";
+  LOG_INFO("Skipped testing static nets.");
 #endif // ifndef NOSTATIC
   
   return 0;
@@ -195,7 +191,7 @@ int main(int argc, char** argv) {
 pair< BatchVec<Nin>, BatchVec<Nout> > readFromFile(string fname) {
   std::ifstream fin(fname);
   if (!fin.is_open()) {
-    BOOST_LOG_TRIVIAL(error) << "Could not open " << fname;
+    LOG_ERROR("Could not open " << fname);
     return std::make_pair( Vec<Nin>::Zero(Nin), Vec<Nout>::Zero(Nout) );
   }
   string line;
@@ -203,7 +199,7 @@ pair< BatchVec<Nin>, BatchVec<Nout> > readFromFile(string fname) {
   while (std::getline(fin, line).good()) {
     nlines++;
   }
-  BOOST_LOG_TRIVIAL( debug ) << nlines << " lines in file";
+  LOG_DEBUG(nlines << " lines in file");
   fin.close();
   fin.open(fname);
   Mat<Nin, Eigen::Dynamic> mxs = Mat<Nin, Eigen::Dynamic>::Zero(Nin, nlines);
@@ -212,7 +208,7 @@ pair< BatchVec<Nin>, BatchVec<Nout> > readFromFile(string fname) {
     std::istringstream s(line);
     string elem;
     std::getline(s, elem, ','); // this is a throwaway datapoint (animal name); could be printed for debugging
-    BOOST_LOG_TRIVIAL(trace) << "reading " << elem;
+    LOG_TRACE("reading " << elem);
     std::vector<int> ins;
     while ( std::getline(s, elem, ',').good() ) {
       // this will not read the last element, which is followed by a '\n'
@@ -223,15 +219,15 @@ pair< BatchVec<Nin>, BatchVec<Nout> > readFromFile(string fname) {
     }
     std::getline(s, elem);
     int animal_class = std::stoi(elem); // the last element is followed by a newline and represents the animal class
-    // BOOST_LOG_TRIVIAL(debug) << "ac minus 1: " << (animal_class-1);
-    // BOOST_LOG_TRIVIAL(debug) << Mat<Nout, Nout>::Identity(Nout, Nout)/*.col(animal_class-1)*/;
+    // LOG_DEBUG("ac minus 1: " << (animal_class-1));
+    // LOG_DEBUG(Mat<Nout, Nout>::Identity(Nout, Nout)/*.col(animal_class-1)*/);
     // Vec<Nout> class_vec = Mat<Nout, Nout>::Identity(Nout, Nout).col(animal_class-1);
-    // BOOST_LOG_TRIVIAL(debug) << "ac: " << animal_class;
-    // BOOST_LOG_TRIVIAL(debug) << "cv.T: " << class_vec.transpose();
-    // BOOST_LOG_TRIVIAL(debug) << "\n";
+    // LOG_DEBUG("ac: " << animal_class);
+    // LOG_DEBUG("cv.T: " << class_vec.transpose());
+    // LOG_DEBUG("\n");
     // mys.col(i_col) = class_vec;
     
-    // for some reason, trying to grab the i^th column of the identity matrix is not working properly
+    // for some reason, trying to grab the i^th column of the identity matrix, as above, is not working as expected
     mys(animal_class-1, i_col) = 1; // and the rest should be zeros
 
   }

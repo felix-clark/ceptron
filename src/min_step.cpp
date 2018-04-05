@@ -1,5 +1,5 @@
 #include "min_step.hpp"
-#include <boost/log/trivial.hpp>
+#include "log.hpp"
 #include <utility> // for std::swap
 
 namespace {
@@ -30,7 +30,7 @@ namespace ceptron {
       }
       if ( (fa-fb)*(fa-fb) < tol*tol*(1.0 + (fa+fb)*(fa+fb)) ) {
 	// tolerance reached
-	BOOST_LOG_TRIVIAL(trace) << "exiting line search due to tolerance reached";
+	LOG_TRACE("exiting line search due to tolerance reached");
 	break;
       }
       if (fa > fb) {
@@ -39,8 +39,8 @@ namespace ceptron {
       }
       if ( !( fa <= fb) ) {
 	// we shouldn't get here -- possibly NaNs?
-	BOOST_LOG_TRIVIAL(warning) << "f(xa) = " << fa << ", f(xb) = " << fb;
-	BOOST_LOG_TRIVIAL(warning) << "iteration number " << i_iter;
+	LOG_WARNING("f(xa) = " << fa << ", f(xb) = " << fb);
+	LOG_WARNING("iteration number " << i_iter);
       }
       assert( !(fa > fb) ); // xa is now the best value
       double xr = xa + alpha*(xa - xb); // reflected

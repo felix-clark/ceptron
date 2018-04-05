@@ -27,25 +27,25 @@ find_package(Threads REQUIRED)
 # make sure to install libboost-all-dev (not just libboost-dev)
 # we need this definition for the log, or it fails to link
 add_definitions(-DBOOST_LOG_DYN_LINK)
-find_package(Boost 1.58 REQUIRED COMPONENTS log)
+find_package(Boost 1.58 COMPONENTS log)
+if (Boost_FOUND)
+  # we can work around not finding boost and just do a dumb global logging system
+  add_definitions(-DBOOST_AVAILABLE)
+endif()
 
 # add our include directory
 include_directories(include)
 
 # source files can be manually added:
 # set(SOURCES src/source0.cpp src/source1.cpp ...)
-# but wildcarding is cleaner:
+# but wildcarding is easier:
 file(GLOB SOURCES src/*.cpp)
 # file(GLOB_RECURSE SOURCES src/*.cpp) # recursive, for when we want to organize a bit
 
 # set compiler options
 # checking for g++ can be done w/ something like if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX) ... endif()
-# this hasn't been working... -Wall is an "unrecognized command-line option"??
 set(MY_DEBUG_OPTIONS -g -O0 -Wall -Wextra -pedantic)
 set(MY_RELEASE_OPTIONS -O3 -Wall -Wextra -pedantic)
-
-# we can add compile definitions for all targets at once with add_definitions(-DNOSTATIC)
-# this has nothing to do w/ the linkage of the library - just whether to compile our compile-time static NNs for testing
 
 # define our library
 #  we will feasibly have multiple applications using the same lib,
@@ -58,7 +58,6 @@ target_link_libraries(ceptron Eigen3::Eigen ${Boost_LOG_LIBRARY} ${CMAKE_THREAD_
 # PUBLIC should propagate these flags down to dependencies
 target_compile_options(ceptron PUBLIC "$<$<CONFIG:DEBUG>:${MY_DEBUG_OPTIONS}>")
 target_compile_options(ceptron PUBLIC "$<$<CONFIG:RELEASE>:${MY_RELEASE_OPTIONS}>")
-
 
 
 file(GLOB TESTSRCS test/*.cpp)

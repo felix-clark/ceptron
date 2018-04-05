@@ -2,9 +2,6 @@
 #include "global.hpp"
 #include <Eigen/Dense>
 
-// for debug only
-// #include <boost/log/trivial.hpp>
-
 namespace ceptron {
   enum class RegressionType {Categorical, LeastSquares, Poisson};
   // "Categorical" means "exclusive categorical", meaning y should be one-hot or zero and an implied "none" category is used for |y| < 1.
