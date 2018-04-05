@@ -136,9 +136,10 @@ int main(int argc, char** argv) {
   
   // since this dataset is rather small, we'll do full batch gradient descent directly.
   Net net;
-  net.randomInit(); // should be done by default now, but just to be explicit we'll re-do it here.
   // try setting to same initialization as runtime net:
-  net.accessNetValue() = initparsd; // indeed this does result in identical results.
+  // net.accessNetValue() = initparsd; // indeed this does result in identical results.
+  net.accessNetValue() = randomWeights<Net>();
+  net.setL2Reg(l2reg);
   
   // from a programming perspective it seems preferable to not initialize to random variables, but we have to make sure to remember to randomize every time.
   BOOST_LOG_TRIVIAL(info) << "";
@@ -151,11 +152,11 @@ int main(int argc, char** argv) {
   for (int i_ep=0; i_ep<numEpochs; ++i_ep) {
     if (i_ep % (numEpochs/4) == 0) {
       BOOST_LOG_TRIVIAL(info) << "beginning " << i_ep << "th epoch";
-      BOOST_LOG_TRIVIAL(info) << "cost function: " << costFunc(net, xb, yb, l2reg);
+      BOOST_LOG_TRIVIAL(info) << "cost function: " << costFunc(net, xb, yb);
       BOOST_LOG_TRIVIAL(debug) << "mid-training predictions:";
       printPredictions(net);
     }
-    trainSlfnStatic<Net>( net, minstep, xb, yb, l2reg );
+    trainSlfnStatic<Net>( net, minstep, xb, yb );
   }
 
   BOOST_LOG_TRIVIAL(info) << "post-training predictions:";

@@ -24,10 +24,9 @@ namespace ceptron {
 
   // struct for returning a function value with its gradient.
   // often we are only interested in the gradient
-  template <int M=Eigen::Dynamic>
   struct func_grad_res {
     double f=0.;
-    Array<M> g = Array<M>::Zero(M);
+    ArrayX g=ArrayX::Zero(0);
   };
   
 } // namespace ceptron

@@ -20,11 +20,11 @@ namespace {
 // borrow this function from other testing utility to check the neural net's derivative
 // we will really want to check element-by-element
 template <typename Net>
-void check_gradient(Net& net, const BatchVec<Net::inputs>& xin, const BatchVec<Net::outputs>& yin, double l2reg=0.01, double ep=1e-4, double tol=1e-8) {
+void check_gradient(Net& net, const BatchVec<Net::inputs>& xin, const BatchVec<Net::outputs>& yin, double ep=1e-4, double tol=1e-8) {
   constexpr size_t Npar = Net::size;
   const ArrayX p = net.getNetValue(); // don't make this a reference: the internal data will change!
   // func_grad_res</*Npar*/> fgvals = costFuncAndGrad<Nin, Nout, Nhid, Reg, Act>(net, xin, yin, l2reg); // this must be done before 
-  func_grad_res<> fgvals = costFuncAndGrad(net, xin, yin, l2reg); // this must be done before
+  func_grad_res fgvals = costFuncAndGrad(net, xin, yin); // this must be done before
   // or does the following work? :
   // func_grad_res</*Npar*/> fgvals = costFuncAndGrad<Reg, Act>(net, xin, yin, l2reg); // this must be done before 
   double fval = fgvals.f; // don't think we actually need this, but it might be a nice check
@@ -41,9 +41,9 @@ void check_gradient(Net& net, const BatchVec<Net::inputs>& xin, const BatchVec<N
     ArrayX pplus = p + dp;
     ArrayX pminus = p - dp;
     net.accessNetValue() = pplus;
-    double fplusi = costFunc(net, xin, yin, l2reg);
+    double fplusi = costFunc(net, xin, yin);
     net.accessNetValue() = pminus;
-    double fminusi = costFunc(net, xin, yin, l2reg);
+    double fminusi = costFunc(net, xin, yin);
     df(i_f) = (fplusi - fminusi)/(2*dpi);
   }
   
@@ -69,13 +69,10 @@ void check_gradient(const FfnDyn& net, const ArrayX& p, const BatchVecX& xin, co
   assert( yin.rows() == net.numOutputs() );
   const int Npar = net.num_weights();
   assert( p.size() == Npar );
-  // const ArrayX p = ArrayX::Random(Npar);
-  // func_grad_res<> fgvals = costFuncAndGrad<Net, Reg, Act>(net, xin, yin, l2reg); // this must be done before
-  // func_grad_res<> fgvals = net.costFuncAndGrad(p, xin, yin/*, l2reg*/); // this must be done before
   BOOST_LOG_TRIVIAL(trace) << "about to call costFunc";
   double fval = net.costFunc(p, xin, yin);
   BOOST_LOG_TRIVIAL(trace) << "about to call costFuncGrad";
-  ArrayX gradval = net.costFuncGrad(p, xin, yin/*, l2reg*/);
+  ArrayX gradval = net.costFuncGrad(p, xin, yin);
 
   BOOST_LOG_TRIVIAL(trace) << "about to try to compute numerical derivative";
   
@@ -84,8 +81,8 @@ void check_gradient(const FfnDyn& net, const ArrayX& p, const BatchVecX& xin, co
     ArrayX dp = ArrayX::Zero(Npar);
     double dpi = ep*sqrt(1.0 + p(i_f)*p(i_f));
     dp(i_f) = dpi;
-    double fplusi = net.costFunc(p+dp, xin, yin/*, l2reg*/);
-    double fminusi = net.costFunc(p-dp, xin, yin/*, l2reg*/);
+    double fplusi = net.costFunc(p+dp, xin, yin);
+    double fminusi = net.costFunc(p-dp, xin, yin);
     df(i_f) = (fplusi - fminusi)/(2*dpi);
   }
   
@@ -152,7 +149,8 @@ int main(int, char**) {
   
   
   Net testNet;
-  testNet.randomInit();
+  testNet.accessNetValue() = randomWeights<Net>();
+  netd.setL2Reg(0.01);
   
   // we need to change the interface to let us spit out intermediate-layer activations
   // "activation" only has a useful debug meaning for a single layer
@@ -166,13 +164,13 @@ int main(int, char**) {
   // do we need to feed in the Net template parameter, or can it be inferred from testNet?
   check_gradient( testNet, input, output );
 
-  testNet.randomInit();
+  testNet.accessNetValue() = randomWeights<Net>();
   input.setRandom();
   // output << 1e-6, 0.02, 0.2, 0.01;
   output.setRandom();
   check_gradient( testNet, input, output );
 
-  testNet.randomInit();
+  testNet.accessNetValue() = randomWeights<Net>();
   input.setRandom(); // should also check pathological x values
   // output << 0.9, -0.1, 10.0, 0.1; // this one has nonsensical values but we can check the gradient regardless (it may give warning messages)
   output.setRandom();

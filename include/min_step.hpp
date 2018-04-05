@@ -5,13 +5,8 @@
 #include <Eigen/Dense>
 
 namespace ceptron {
-  using fg_t = std::function<func_grad_res<>(ArrayX)>;
-
-  // these may not be used elsewhere yet... keep them local?
-  /// we will move away from this and towards a function returning both func and gradient result
   using func_t = std::function<double(ArrayX)>;
   using grad_t = std::function<ArrayX(ArrayX)>;
-
 
   // we should also implement a golden section search
   double line_search( std::function<double(double)>, double, double, size_t maxiter = 16, double tol=1e-6 );
@@ -37,7 +32,6 @@ namespace ceptron {
 
   // ---- basic gradient descent ----
 
-  // template <int N>
   class GradientDescent : public IMinStep
   {
   public:

@@ -19,13 +19,16 @@ namespace { // protect these definitions locally; don't pollute global namespace
 namespace ceptron {
 
   // could a base case using the CRTP help avoid some of the awkwardness in the definitions below?
-  // template <typename Derived>
-  // class SlfnBase
-  // {
-  // public:
-  //   static constexpr size_t size = Derived::size;
-  //   // using Derived::randomInit; // this doesn't work
-  // };
+  template <typename Derived>
+  class SlfnBase
+  {
+  public:
+    // static constexpr size_t size() {static_cast<Derived*>(this).size;}
+    static constexpr size_t size = Derived::size; // this does actually work. is it useful?
+  private:
+    SlfnBase() = default;  // making the constructor private and the derived class a friend ensures
+    friend Derived;        // that a derived class can only give its own type as a parameter
+  };
   
   // we will really want to break this apart (into layers?) and generalize it but first let's get a simple working example.
   // this is a "single hidden layer feedforward network" (SLFN) with 1 output
@@ -34,7 +37,7 @@ namespace ceptron {
   template <size_t N, size_t M=1, size_t P=(N+M)/2,
 	    RegressionType Reg=RegressionType::Categorical,
 	    InternalActivator Act=InternalActivator::Tanh>
-  class SlfnStatic // : public SlfnBase<SlfnStatic<N,M,P,Reg,Act>>
+  class SlfnStatic : public SlfnBase<SlfnStatic<N,M,P,Reg,Act>>
   {
   public:
     static constexpr size_t inputs = N;
@@ -50,10 +53,10 @@ namespace ceptron {
   public:
     constexpr static size_t size = size_w1_ + size_w2_;
     // constexpr static size_t size() {return size_;}
-    SlfnStatic() {randomInit();} // forgetting to randomly initialize can be bad, so we'll do it automatically right now.
-    SlfnStatic(const Array</*size_*/>& ar) {net_=ar;}; // to construct/convert directly from array
+    SlfnStatic() = default; // don't forget to randomly initialize
+    SlfnStatic(const ArrayX& ar) {net_=ar;}; // to construct/convert directly from array
     // ~SlfnStatic() {};
-    void randomInit();
+    // static Array<size> randomWeights(); // returns an appropriate random initialization // make non-member function
     // this could be useful for indicating which data elements are most relevant.
     Array<N> inputLayerActivation(const Vec<N>& in) const; // returns activation from single input. these will no longer be cached
     Array<P> hiddenLayerActivation(const Vec<N>& in) const; // they don't actually need to be member functions
@@ -65,6 +68,9 @@ namespace ceptron {
     const Array<>& getNetValue() const {return net_;}
     Array<>& accessNetValue() {return net_;} // allows use of in-place operations
 
+    void setL2Reg(double lambda) {l2_lambda_=lambda;}
+    double getL2Reg() const {return l2_lambda_;}
+
     bool operator==(const this_t& other) const;
     bool operator!=(const this_t& other) const {return !(this->operator==(other));}
 
@@ -72,6 +78,7 @@ namespace ceptron {
     void fromFile(const std::string& fname);
   
   private:
+    double l2_lambda_=0.;
     // we will likely move to not storing the network data directly in this class.
     // it may make sense to declare a struct (union) of functions + net data
     Array<> net_ = Array<size>::Zero(size);
@@ -106,26 +113,27 @@ namespace ceptron {
 
   };
 
-
-  template <size_t N, size_t M, size_t P,
-  	    RegressionType Reg,
-  	    InternalActivator Act>
-  void SlfnStatic<N,M,P,Reg,Act>::randomInit() {
-    // it is better to scale random initialization by 1/sqrt(n) where n is the number of inputs in a synapse.
-    //   this results in a variance of the neuron output that is not dependent on the number of inputs.
-    //   dividing by the total size is just a rough approximation
-    // We also only want to randomize the weights -- the initial biases should be kept at zero.
-    // TODO
-    net_ = (1./size)*Array<size>::Random();
+  template <typename Net>
+  Array<Net::size> randomWeights()
+  {
+    constexpr size_t N = Net::inputs;
+    constexpr size_t P = Net::hiddens;
+    constexpr size_t M = Net::outputs;
+    // using Net = SlfnStatic<N,M,P,Reg,Act>;
+    Array<Net::size> net = Array<Net::size>::Zero(); // set all to zero - biases should be initialized to zero
+    // the weight variances should be scaled down by a factor of the square root of the # of their inputs,
+    //  so that the variance of their output is not a function of the number of inputs.
+    Map< Mat<P, N> >((net.template segment<P*N>(P)).data()) = Mat<P, N>::Random()/sqrt(N);
+    Map< Mat<M, P> >((net.template segment<M*P>(P*(N+1)+M)).data()) = Mat<M, P>::Random()/sqrt(P);
+    return net;
   }
-
 
   // we should be able to build up multi-layer networks by having each layer work as its own and having their forward and backward propagations interact with each other
 
 
   template <typename Net>
-  ceptron::func_grad_res<>
-  costFuncAndGrad(const Net& net, const BatchVec<Net::inputs>& x0, const BatchVec<Net::outputs>& y, double l2reg = 0.0) {
+  ceptron::func_grad_res
+  costFuncAndGrad(const Net& net, const BatchVec<Net::inputs>& x0, const BatchVec<Net::outputs>& y) {
     const auto batchSize = x0.cols();
     assert( batchSize == y.cols() );
 
@@ -165,7 +173,7 @@ namespace ceptron {
     double costFuncVal = Regressor<Net::RegType>::template costFuncVal< BatchArray<M> >(x2.array(), y.array());
     double costFuncReg = w1.template rightCols<N>().array().square().sum()
       + w2.template rightCols<P>().array().square().sum(); // lambda*sum (weights^2), but we don't include the bias terms
-    costFuncVal += l2reg * costFuncReg;
+    costFuncVal += net.getL2Reg() * costFuncReg;
   
     // now do backwards propagation
 
@@ -186,9 +194,9 @@ namespace ceptron {
     // Array<SlfnStatic<N,M,P>::size()> costFuncGrad;
     Array<Net::size> costFuncGrad;
     // Vec<P> gb1 = d1.rowwise().sum(); // this operation contracts along the axis of different batch data points
-    Mat<P,N> gw1 = d1 * x0.transpose() + 2.0*l2reg*w1.template rightCols<N>(); // add regularization term
+    Mat<P,N> gw1 = d1 * x0.transpose() + 2.0*net.getL2Reg()*w1.template rightCols<N>(); // add regularization term
     // Vec<M> gb2 = d2.rowwise().sum();
-    Mat<M,P> gw2 = d2 * x1.transpose() + 2.0*l2reg*w2.template rightCols<P>();
+    Mat<M,P> gw2 = d2 * x1.transpose() + 2.0*net.getL2Reg()*w2.template rightCols<P>();
     // it would be nice to make this procedure more readable:
     costFuncGrad << d1.rowwise().sum() // gb1 // this comes from the bias terms
       , Map< Vec<P*N> >(gw1.data()) // is this really safe?
@@ -204,7 +212,7 @@ namespace ceptron {
   // we need to be careful w/ this function because it's similar to the version w/ gradient, but stops sooner.
   // a compositional style of this function inside the one that includes the gradient doesn't work trivially since the backprop needs some intermediate results from this calculation
   template <typename Net>
-  double costFunc(const Net& net, const BatchVec<Net::inputs>& x0, const BatchVec<Net::outputs>& y, double l2reg = 0.0) {
+  double costFunc(const Net& net, const BatchVec<Net::inputs>& x0, const BatchVec<Net::outputs>& y) {
 
     constexpr size_t N = Net::inputs;
     constexpr size_t M = Net::outputs;
@@ -228,7 +236,7 @@ namespace ceptron {
     double costFuncVal = Regressor<Net::RegType>::template costFuncVal< BatchArray<M> >(x2.array(), y.array());
     double costFuncReg = w1.template rightCols<N>().array().square().sum()
       + w2.template rightCols<P>().array().square().sum(); // lambda*sum (weights^2), but we don't include the bias terms
-    costFuncVal += l2reg * costFuncReg;
+    costFuncVal += net.getL2Reg() * costFuncReg;
     // normalize after regularization term, which seems like a strange convention
     costFuncVal /= batchSize;
     return costFuncVal;
@@ -279,8 +287,8 @@ namespace ceptron {
   }
 
   template <size_t N, size_t M, size_t P,
-	    RegressionType Reg,
-	    InternalActivator Act>	  
+  	    RegressionType Reg,
+  	    InternalActivator Act>	  
   void SlfnStatic<N,M,P,Reg,Act>::fromFile(const std::string& fname) {
     ifstream fin(fname, ios::binary);
     if (!fin.is_open()) {
