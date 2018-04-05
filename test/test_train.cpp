@@ -172,7 +172,7 @@ int main(int argc, char** argv) {
 
 // get batch that consists of full data in test sample
 pair< BatchVec<Nin>, BatchVec<Nout> > readFromFile(string fname) {
-  ifstream fin(fname);
+  std::ifstream fin(fname);
   if (!fin.is_open()) {
     BOOST_LOG_TRIVIAL(error) << "Could not open " << fname;
     return std::make_pair( Vec<Nin>::Zero(Nin), Vec<Nout>::Zero(Nout) );

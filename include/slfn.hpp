@@ -6,15 +6,6 @@
 // #include <boost/log/sources/basic_logger.hpp> // could be useful in class defs
 #include <Eigen/Dense>
 
-#include <fstream>
-
-namespace { // protect these definitions locally; don't pollute global namespace
-  using std::istream;
-  using std::ostream;
-  using std::ifstream;
-  using std::ofstream;
-  using std::ios;
-}
 
 namespace ceptron {
 
@@ -23,8 +14,7 @@ namespace ceptron {
   class SlfnBase
   {
   public:
-    // static constexpr size_t size() {static_cast<Derived*>(this).size;}
-    static constexpr size_t size = Derived::size; // this does actually work. is it useful?
+    static constexpr size_t size = Derived::size; // this pattern does actually work. is it useful?
   private:
     SlfnBase() = default;  // making the constructor private and the derived class a friend ensures
     friend Derived;        // that a derived class can only give its own type as a parameter
@@ -49,7 +39,6 @@ namespace ceptron {
     using this_t = SlfnStatic<N,M,P,Reg,Act>; // just a shorthand
     static constexpr size_t size_w1_ = P*(N+1); // first layer
     static constexpr size_t size_w2_ = M*(P+1); // output layer
-    // static constexpr size_t size_ = size_w1_ + size_w2_; // total size of data required to store net
   public:
     constexpr static size_t size = size_w1_ + size_w2_;
     // constexpr static size_t size() {return size_;}
@@ -78,40 +67,12 @@ namespace ceptron {
     void fromFile(const std::string& fname);
   
   private:
+    // l2 regularization parameter
     double l2_lambda_=0.;
     // we will likely move to not storing the network data directly in this class.
     // it may make sense to declare a struct (union) of functions + net data
     Array<> net_ = Array<size>::Zero(size);
-
-  public:
-    // define stream operators here at the end
-    // defining this in the class template is annoying but it allows us to avoid introducing
-    //  another layer of template parameters. known as the "making new friends" idiom.
-    friend istream& operator>> (istream& in, this_t& me) {
-      // TODO: some metadata at the top would be nice for verification
-      // let's wait until we have a more general setup (e.g. multilayer) before we worry about that.
-      for (size_t i=0; i<me.size; ++i) {
-	// the fact that this one line doesn't work is actually either a bug in g++ or a flaw in the standards.
-	// it may be fixed in C++ 17 but g++ isn't there yet.
-	// in >> std::hexfloat >> me.net_(i);
-	// see: https://stackoverflow.com/questions/42604596/read-and-write-using-stdhexfloat
-	//  for link to discussion as well as this workaround suggestion:
-	std::string s;
-	in >> std::hexfloat >> s;
-	me.net_(i) = std::strtod(s.data(), nullptr);
-      }
-      return in;
-    }
-    friend ostream& operator<<(ostream& out, const this_t& me) {
-      for (size_t i=0; i<me.size; ++i) {
-	// we do want to go hexfloat, otherwise we suffer a precision loss
-	// removing newline doesn't work even w/ binary, possibly because of the issue discussed in operatior>>().
-	out << std::hexfloat << me.net_(i) << '\n';
-      }
-      return out;
-    }
-
-  };
+  }; // class SlfnStatic
 
   template <typename Net>
   Array<Net::size> randomWeights()
@@ -263,40 +224,13 @@ namespace ceptron {
     return x2;
   }
 
-  // instead of all this, we could declare a base class and use the CRTP
+  // this function will be obsolete once we move the net data externally
+  // TODO delete it later, but let's keep it around for the moment to keep compilation errors under control
   template <size_t N, size_t M, size_t P,
 	    RegressionType Reg,
 	    InternalActivator Act>
   bool SlfnStatic<N,M,P,Reg,Act>::operator==(const SlfnStatic<N,M,P,Reg,Act>& other) const {
     return (this->net_ == other.net_).all();
-  }
-
-
-  template <size_t N, size_t M, size_t P,
-	    RegressionType Reg,
-	    InternalActivator Act>
-  void SlfnStatic<N,M,P,Reg,Act>::toFile(const std::string& fname) const {
-    // ios::trunc erases any previous content in the file.
-    ofstream fout(fname , ios::binary | ios::trunc );
-    if (!fout.is_open()) {
-      BOOST_LOG_TRIVIAL(error) << "could not open file " << fname << " for writing.";
-      return;
-    }
-    fout << *this;
-    fout.close();
-  }
-
-  template <size_t N, size_t M, size_t P,
-  	    RegressionType Reg,
-  	    InternalActivator Act>	  
-  void SlfnStatic<N,M,P,Reg,Act>::fromFile(const std::string& fname) {
-    ifstream fin(fname, ios::binary);
-    if (!fin.is_open()) {
-      BOOST_LOG_TRIVIAL(error) << "could not open file " << fname << " for reading.";
-      return;
-    }
-    fin >> *this; // streams are not efficient
-    fin.close();
   }
 
 } // namespace ceptron

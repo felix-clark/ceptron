@@ -1,6 +1,7 @@
 #include "global.hpp"
 #include "slfn.hpp"
 #include "ffn_dyn.hpp"
+#include "ionet.hpp"
 #include <boost/log/core.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/log/expressions.hpp>
@@ -176,10 +177,10 @@ int main(int, char**) {
   output.setRandom();
   check_gradient( testNet, input, output );
 
-  testNet.toFile("testcopy.net");
+  toFile(testNet.getNetValue(), "testcopy.net");
   Net netCopy;
-  netCopy.fromFile("testcopy.net");
-  if ( testNet != netCopy) {
+  netCopy.accessNetValue() = fromFile("testcopy.net");
+  if ( testNet != netCopy ) {
     BOOST_LOG_TRIVIAL(warning) << "loaded net is not the same!";
     BOOST_LOG_TRIVIAL(warning) << "original:\n" << testNet.getNetValue().transpose().format(my_fmt);
     BOOST_LOG_TRIVIAL(warning) << "copy:\n" << netCopy.getNetValue().transpose().format(my_fmt);
