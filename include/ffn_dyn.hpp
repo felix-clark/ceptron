@@ -3,8 +3,6 @@
 #include "activation.hpp"
 #include "regression.hpp"
 
-#include <boost/log/trivial.hpp>
-
 #include <vector>
 #include <memory>
 
@@ -119,7 +117,6 @@ namespace ceptron {
     next_layer_ = std::make_unique<Layer>(act, reg, n1, n2, others...);
     outputs_ = n1;
     num_weights_ = outputs_*(inputs_+1);
-    BOOST_LOG_TRIVIAL(trace) << "in intermediate layer constructor with " << inputs_ << " inputs and " << outputs_ << " outputs.";
 
     activation_func_ = std::bind(activ, act, std::placeholders::_1);
     activ_to_d_func_ = std::bind(activToD, act, std::placeholders::_1);
