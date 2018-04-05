@@ -11,6 +11,7 @@
 #include <vector>
 #include <fstream>
 #include <sstream>
+#include <iomanip> // for setprecision
 #include <cstdlib> // for srand
 //#include <ctime> // for time
 
@@ -29,6 +30,7 @@ namespace {
   namespace logging = boost::log;
   using std::string;
   using std::pair;
+  using std::vector;
   
 } // namespace
 
@@ -44,9 +46,23 @@ Vec<Nin> x_woodpecker();
 Vec<Nin> x_salamander();
 
 void printPredictions(const FfnDyn& net, const ArrayX& pars) {
-  BOOST_LOG_TRIVIAL(info) << "dog: " << net.prediction(pars, x_dog()).transpose();
-  BOOST_LOG_TRIVIAL(info) << "woodpecker: " << net.prediction(pars, x_woodpecker()).transpose();
-  BOOST_LOG_TRIVIAL(info) << "salamander: " << net.prediction(pars, x_salamander()).transpose();
+  vector<pair<string, VecX>> animals = {
+    {"dog", x_dog()},
+    {"woodpecker", x_woodpecker()},
+    {"salamander", x_salamander()},
+  };
+  for (const auto& animal : animals) {
+    BOOST_LOG_TRIVIAL(info) << animal.first << ":";
+    ArrayX prediction = net.prediction(pars, animal.second).array();
+    auto candidateIndices = (prediction > 0.2);
+    for (size_t i=0; i<Nout; ++i) {
+      if (candidateIndices[i]) {
+	BOOST_LOG_TRIVIAL(info) << "  " << toString(i+1) << "  " << prediction[i]*100 << "%";
+      }
+    }
+    // a full printout
+    BOOST_LOG_TRIVIAL(trace) << animal.first << ": " << prediction.transpose();
+  }
 }
 
 int main(int argc, char** argv) {
@@ -75,6 +91,7 @@ int main(int argc, char** argv) {
   // BOOST_LOG_TRIVIAL(trace) << parsd; // looks fine
   AdaDelta msd(netd.num_weights());
   
+  BOOST_LOG_TRIVIAL(info) << std::setprecision(4); // set this once
   BOOST_LOG_TRIVIAL(info) << "running test on dynamic version";
   BOOST_LOG_TRIVIAL(debug) << "parameter space has dimension " << netd.num_weights();
 
@@ -82,7 +99,7 @@ int main(int argc, char** argv) {
   printPredictions(netd, parsd);
   
   for (int i_ep=0; i_ep<numEpochs; ++i_ep) {
-    if (i_ep % 64 == 0) {
+    if (i_ep % (numEpochs/4) == numEpochs/8) {
       BOOST_LOG_TRIVIAL(info) << "beginning " << i_ep << "th epoch";
       BOOST_LOG_TRIVIAL(info) << "cost function: " << netd.costFunc(parsd, xb, yb);
       BOOST_LOG_TRIVIAL(debug) << "mid-training predictions:";
@@ -104,6 +121,7 @@ int main(int argc, char** argv) {
   Net net;
   net.randomInit(); // should be done by default now, but just to be explicit we'll re-do it here.
   // from a programming perspective it seems preferable to not initialize to random variables, but we have to make sure to remember to randomize every time.
+  BOOST_LOG_TRIVIAL(info) << "";
   BOOST_LOG_TRIVIAL(info) << "running test on static version";
   BOOST_LOG_TRIVIAL(info) << "parameter space has dimension " << Net::size;
   // GradientDescent minstep(Net::size); // this could be a choice of a different minimizer
@@ -116,7 +134,7 @@ int main(int argc, char** argv) {
   BOOST_LOG_TRIVIAL(debug) << "salamander: " << prediction<Net, Reg, Act>(net, x_salamander()).transpose();
   
   for (int i_ep=0; i_ep<numEpochs; ++i_ep) {
-    if (i_ep % 64 == 0) {
+    if (i_ep % (numEpochs/4) == numEpochs/8) {
       BOOST_LOG_TRIVIAL(info) << "beginning " << i_ep << "th epoch";
       BOOST_LOG_TRIVIAL(info) << "cost function: " << costFunc<Net, Reg, Act>(net, xb, yb, l2reg);
       BOOST_LOG_TRIVIAL(debug) << "mid-training predictions:";
@@ -200,15 +218,6 @@ string toString(int class_type) {
   }
   return "unknown";
 }
-
-// pair< Vec<Nin>, Vec<Nout> > getTestData(string animal_name) {
-//   // turn into lower-case
-//   std::transform( animal_name.begin(), animal_name.end(), animal_name.begin(), ::tolower);
-//   switch(animal_name) {
-//   case "salamander":
-//     return std::make_pair();
-//   }
-// }
 
 Vec<Nin> x_salamander() {
   Vec<Nin> x;
