@@ -43,35 +43,28 @@ namespace ceptron {
     constexpr static size_t size = size_w1_ + size_w2_;
     // constexpr static size_t size() {return size_;}
     SlfnStatic() = default; // don't forget to randomly initialize
-    SlfnStatic(const ArrayX& ar) {net_=ar;}; // to construct/convert directly from array
-    // ~SlfnStatic() {};
+    // ~SlfnStatic() = default;
     // static Array<size> randomWeights(); // returns an appropriate random initialization // make non-member function
     // this could be useful for indicating which data elements are most relevant.
     Array<N> inputLayerActivation(const Vec<N>& in) const; // returns activation from single input. these will no longer be cached
     Array<P> hiddenLayerActivation(const Vec<N>& in) const; // they don't actually need to be member functions
     // using "auto" may not be best when returning a map view -- TODO: look into this more?
-    auto getFirstSynapses() const {return Map< const Mat<P, N+1> >(net_.data());};
-    auto getSecondSynapses() const
-    {return Map< const Mat<M, P+1> >(net_.template segment<size_w2_>(size_w1_).data());};
-    // const Array<size_>& getNetValue() const {return net_;}
-    const Array<>& getNetValue() const {return net_;}
-    Array<>& accessNetValue() {return net_;} // allows use of in-place operations
+    auto getFirstSynapses(const ArrayX& net) const {return Map< const Mat<P, N+1> >(net.data());};
+    auto getSecondSynapses(const ArrayX& net) const
+    {return Map< const Mat<M, P+1> >(net.template segment<size_w2_>(size_w1_).data());};
+    // const Array<>& getNetValue() const {return net_;}
+    // Array<>& accessNetValue() {return net_;} // allows use of in-place operations
 
     void setL2Reg(double lambda) {l2_lambda_=lambda;}
     double getL2Reg() const {return l2_lambda_;}
 
-    bool operator==(const this_t& other) const;
-    bool operator!=(const this_t& other) const {return !(this->operator==(other));}
-
-    void toFile(const std::string& fname) const;
-    void fromFile(const std::string& fname);
-  
   private:
     // l2 regularization parameter
     double l2_lambda_=0.;
+    
     // we will likely move to not storing the network data directly in this class.
     // it may make sense to declare a struct (union) of functions + net data
-    Array<> net_ = Array<size>::Zero(size);
+    // Array<> net_ = Array<size>::Zero(size);
   }; // class SlfnStatic
 
   template <typename Net>
@@ -91,10 +84,11 @@ namespace ceptron {
 
   // we should be able to build up multi-layer networks by having each layer work as its own and having their forward and backward propagations interact with each other
 
-
+  // possibly we can move this back to being a member variable, but it's not clear to me rn what would be gained/lost.
+  // the runtime version has that organization, so perhaps we'll keep them different and see which we like best.
   template <typename Net>
   ceptron::func_grad_res
-  costFuncAndGrad(const Net& net, const BatchVec<Net::inputs>& x0, const BatchVec<Net::outputs>& y) {
+  costFuncAndGrad(const Net& net, const ArrayX& netvals, const BatchVec<Net::inputs>& x0, const BatchVec<Net::outputs>& y) {
     const auto batchSize = x0.cols();
     assert( batchSize == y.cols() );
 
@@ -115,8 +109,8 @@ namespace ceptron {
     // propagate forwards
     // it may be simpler to split into weights and biases
     // these matrix types should be typedefs in Net
-    Mat<P, N+1> w1 = net.getFirstSynapses(); // don't think there is copying here for a Map object... but we should verify how it actually works.
-    Mat<M, P+1> w2 = net.getSecondSynapses(); // const references shouldn't be necessary for the expression templates to work
+    Mat<P, N+1> w1 = net.getFirstSynapses(netvals);
+    Mat<M, P+1> w2 = net.getSecondSynapses(netvals);
 
     // at some point we might wish to experiment with column-major (default) vs. row-major data storage order
     BatchVec<P> a1 = w1.template leftCols<1>() * BatchVec<1>::Ones(1,batchSize) // bias terms
@@ -173,7 +167,7 @@ namespace ceptron {
   // we need to be careful w/ this function because it's similar to the version w/ gradient, but stops sooner.
   // a compositional style of this function inside the one that includes the gradient doesn't work trivially since the backprop needs some intermediate results from this calculation
   template <typename Net>
-  double costFunc(const Net& net, const BatchVec<Net::inputs>& x0, const BatchVec<Net::outputs>& y) {
+  double costFunc(const Net& net, const ArrayX& netvals, const BatchVec<Net::inputs>& x0, const BatchVec<Net::outputs>& y) {
 
     constexpr size_t N = Net::inputs;
     constexpr size_t M = Net::outputs;
@@ -182,8 +176,8 @@ namespace ceptron {
     // we won't do as many checks in this version -- the whole point is to be fast.
     const auto batchSize = x0.cols();
     // propagate forwards
-    Mat<P, N+1> w1 = net.getFirstSynapses(); // don't think there is copying here for a Map object... but we should verify how it actually works.
-    Mat<M, P+1> w2 = net.getSecondSynapses(); // const references shouldn't be necessary for the expression templates to work
+    Mat<P, N+1> w1 = net.getFirstSynapses(netvals);
+    Mat<M, P+1> w2 = net.getSecondSynapses(netvals);
 
     // a_n should just be temporary expressions
     BatchVec<P> a1 = w1.template leftCols<1>() * BatchVec<1>::Ones(1,batchSize) // bias terms
@@ -205,14 +199,14 @@ namespace ceptron {
 
   // this returns a prediction for a single data point x0
   template <typename Net>
-  Vec<Net::outputs> prediction(const Net& net, const Vec<Net::inputs>& x0) {
+  Vec<Net::outputs> prediction(const Net& net, const ArrayX& netvals, const Vec<Net::inputs>& x0) {
     constexpr size_t N = Net::inputs;
     constexpr size_t M = Net::outputs;
     constexpr size_t P = Net::hiddens;
 
     // again, these typedefs should come out of Net, not N, M, and P
-    Mat<P, N+1> w1 = net.getFirstSynapses();
-    Mat<M, P+1> w2 = net.getSecondSynapses();
+    Mat<P, N+1> w1 = net.getFirstSynapses(netvals);
+    Mat<M, P+1> w2 = net.getSecondSynapses(netvals);
 
     // a_n should just be temporary expressions
     Vec<P> a1 = w1.template leftCols<1>() // bias terms
@@ -222,15 +216,6 @@ namespace ceptron {
       + w2.template rightCols<P>() * x1;
     Vec<M> x2 = Regressor<Net::RegType>::template outputGate< Array<M> >(a2.array()).matrix();
     return x2;
-  }
-
-  // this function will be obsolete once we move the net data externally
-  // TODO delete it later, but let's keep it around for the moment to keep compilation errors under control
-  template <size_t N, size_t M, size_t P,
-	    RegressionType Reg,
-	    InternalActivator Act>
-  bool SlfnStatic<N,M,P,Reg,Act>::operator==(const SlfnStatic<N,M,P,Reg,Act>& other) const {
-    return (this->net_ == other.net_).all();
   }
 
 } // namespace ceptron

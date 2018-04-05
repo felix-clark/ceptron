@@ -21,11 +21,11 @@ namespace {
 // borrow this function from other testing utility to check the neural net's derivative
 // we will really want to check element-by-element
 template <typename Net>
-void check_gradient(Net& net, const BatchVec<Net::inputs>& xin, const BatchVec<Net::outputs>& yin, double ep=1e-4, double tol=1e-8) {
+void check_gradient(Net& net, const ArrayX& p, const BatchVec<Net::inputs>& xin, const BatchVec<Net::outputs>& yin, double ep=1e-4, double tol=1e-8) {
   constexpr size_t Npar = Net::size;
-  const ArrayX p = net.getNetValue(); // don't make this a reference: the internal data will change!
+  // const ArrayX p = net.getNetValue(); // don't make this a reference: the internal data will change!
   // func_grad_res</*Npar*/> fgvals = costFuncAndGrad<Nin, Nout, Nhid, Reg, Act>(net, xin, yin, l2reg); // this must be done before 
-  func_grad_res fgvals = costFuncAndGrad(net, xin, yin); // this must be done before
+  func_grad_res fgvals = costFuncAndGrad(net, p, xin, yin); // this must be done before
   // or does the following work? :
   // func_grad_res</*Npar*/> fgvals = costFuncAndGrad<Reg, Act>(net, xin, yin, l2reg); // this must be done before 
   double fval = fgvals.f; // don't think we actually need this, but it might be a nice check
@@ -39,12 +39,8 @@ void check_gradient(Net& net, const BatchVec<Net::inputs>& xin, const BatchVec<N
     // BOOST_LOG_TRIVIAL(trace) << "declaring dpi";
     double dpi = ep*sqrt(1.0 + p(i_f)*p(i_f));
     dp(i_f) = dpi;
-    ArrayX pplus = p + dp;
-    ArrayX pminus = p - dp;
-    net.accessNetValue() = pplus;
-    double fplusi = costFunc(net, xin, yin);
-    net.accessNetValue() = pminus;
-    double fminusi = costFunc(net, xin, yin);
+    double fplusi = costFunc(net, p+dp, xin, yin);
+    double fminusi = costFunc(net, p-dp, xin, yin);
     df(i_f) = (fplusi - fminusi)/(2*dpi);
   }
   
@@ -125,68 +121,65 @@ int main(int, char**) {
   constexpr InternalActivator Act=InternalActivator::Softplus;
   constexpr int batchSize = 16;
 
-  FfnDyn netd(Reg, Act, Nin, Nh, Nout);
-  BOOST_LOG_TRIVIAL(debug) << "size of dynamic net: " << netd.num_weights();
-  ArrayX randpar = netd.randomWeights(); //ArrayX::Random(netd.num_weights());
-  netd.setL2Reg(0.01);
-  // BOOST_LOG_TRIVIAL(debug) << randpar;
-
-  
   BatchVec<Nin> input(Nin, batchSize); // i guess we need the length in the constructor still?
   input.setRandom();
-
+  
   BatchVec<Nout> output(Nout, batchSize);
   // with a large-ish batch there are too many numbers to plug in manually
   // output << 0.5, 0.25, 0.1, 0.01;
   output.setRandom();
-
-  check_gradient(netd, randpar, input, output);
-
+  
+  {
+    FfnDyn netd(Reg, Act, Nin, Nh, Nout);
+    BOOST_LOG_TRIVIAL(debug) << "size of dynamic net: " << netd.num_weights();
+    ArrayX randpar = netd.randomWeights(); //ArrayX::Random(netd.num_weights());
+    netd.setL2Reg(0.01);
+    // BOOST_LOG_TRIVIAL(debug) << randpar; 
+    check_gradient(netd, randpar, input, output);
+  }
   // to speed up compilation we can disable the static tests while we develop the dynamic case
 #ifndef NOSTATIC
 
-  // defines the architecture of our test NN
-  using Net = SlfnStatic<Nin, Nout, Nh>;
+  { // static net test
+    // defines the architecture of our test NN
+    using Net = SlfnStatic<Nin, Nout, Nh>;
+    Net testNet;
+    ArrayX pars = randomWeights<Net>();
+    testNet.setL2Reg(0.01);
   
-  
-  Net testNet;
-  testNet.accessNetValue() = randomWeights<Net>();
-  netd.setL2Reg(0.01);
-  
-  // we need to change the interface to let us spit out intermediate-layer activations
-  // "activation" only has a useful debug meaning for a single layer
-  BOOST_LOG_TRIVIAL(info) << "input data is:\n" << input.format(my_fmt);
-  BOOST_LOG_TRIVIAL(info) << "first weights:\n" << testNet.getFirstSynapses().format(my_fmt);
-  BOOST_LOG_TRIVIAL(info) << "second weights:\n" << testNet.getSecondSynapses().format(my_fmt);
-  auto& pars = testNet.getNetValue();
-  // BOOST_LOG_TRIVIAL(info) << "net value of array:\n" << testNet.getNetValue().format(my_fmt);
-  BOOST_LOG_TRIVIAL(info) << "array has " << pars.size() << " parameters.";
+    // we need to change the interface to let us spit out intermediate-layer activations
+    // "activation" only has a useful debug meaning for a single layer
+    BOOST_LOG_TRIVIAL(info) << "input data is:\n" << input.format(my_fmt);
+    BOOST_LOG_TRIVIAL(info) << "first weights:\n" << testNet.getFirstSynapses(pars).format(my_fmt);
+    BOOST_LOG_TRIVIAL(info) << "second weights:\n" << testNet.getSecondSynapses(pars).format(my_fmt);
+    // BOOST_LOG_TRIVIAL(info) << "net value of array:\n" << testNet.getNetValue().format(my_fmt);
+    BOOST_LOG_TRIVIAL(info) << "array has " << pars.size() << " parameters.";
 
-  // do we need to feed in the Net template parameter, or can it be inferred from testNet?
-  check_gradient( testNet, input, output );
+    // do we need to feed in the Net template parameter, or can it be inferred from testNet?
+    check_gradient( testNet, pars, input, output );
 
-  testNet.accessNetValue() = randomWeights<Net>();
-  input.setRandom();
-  // output << 1e-6, 0.02, 0.2, 0.01;
-  output.setRandom();
-  check_gradient( testNet, input, output );
+    pars.setRandom();
+    input.setRandom();
+    // output << 1e-6, 0.02, 0.2, 0.01;
+    output.setRandom();
+    check_gradient( testNet, pars, input, output );
 
-  testNet.accessNetValue() = randomWeights<Net>();
-  input.setRandom(); // should also check pathological x values
-  // output << 0.9, -0.1, 10.0, 0.1; // this one has nonsensical values but we can check the gradient regardless (it may give warning messages)
-  output.setRandom();
-  check_gradient( testNet, input, output );
+    pars.setRandom();
+    input.setRandom(); // should also check pathological x values
+    // output << 0.9, -0.1, 10.0, 0.1; // this one has nonsensical values but we can check the gradient regardless (it may give warning messages)
+    output.setRandom();
+    check_gradient( testNet, pars, input, output );
 
-  toFile(testNet.getNetValue(), "testcopy.net");
-  Net netCopy;
-  netCopy.accessNetValue() = fromFile("testcopy.net");
-  if ( testNet != netCopy ) {
-    BOOST_LOG_TRIVIAL(warning) << "loaded net is not the same!";
-    BOOST_LOG_TRIVIAL(warning) << "original:\n" << testNet.getNetValue().transpose().format(my_fmt);
-    BOOST_LOG_TRIVIAL(warning) << "copy:\n" << netCopy.getNetValue().transpose().format(my_fmt);
-    auto diff = testNet.getNetValue() - netCopy.getNetValue();
-    BOOST_LOG_TRIVIAL(warning) << "difference:\n" << diff.transpose().format(my_fmt);
-  }
+    toFile(pars, "copytest.net");
+    decltype(pars) parsCopy = fromFile("copytest.net");
+    if ( (pars != parsCopy).any() ) {
+      BOOST_LOG_TRIVIAL(warning) << "loaded net is not the same!";
+      BOOST_LOG_TRIVIAL(warning) << "original:\n" << pars.transpose().format(my_fmt);
+      BOOST_LOG_TRIVIAL(warning) << "copy:\n" << parsCopy.transpose().format(my_fmt);
+      auto diff = pars - parsCopy;
+      BOOST_LOG_TRIVIAL(warning) << "difference:\n" << diff.transpose().format(my_fmt);
+    }
+  } // static net test
 
 #else
   BOOST_LOG_TRIVIAL(info) << "skipping static nets.";
