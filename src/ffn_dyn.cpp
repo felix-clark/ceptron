@@ -126,7 +126,7 @@ MatX FfnDyn::Layer::getCostFuncGradRecurse(const Eigen::Ref<const ArrayX>& netva
   MatX weights = Eigen::Map<const MatX>(netvals.segment(outputs_, inputs_*outputs_).data(),
 					outputs_, inputs_);
   const auto insize = netvals.size();
-  BatchVecX a1 = weights*xin.matrix();
+  BatchVecX a1 = weights*xin;
   a1.colwise() += bias; // a is the output node's value before the activation gate is applied
 
   BatchVecX x1 = activation_func_(a1.array()).matrix();
@@ -156,15 +156,15 @@ VecX FfnDyn::Layer::predictRecurse(const Eigen::Ref<const ArrayX>& netvals, cons
   MatX weights = Eigen::Map<const MatX>(netvals.segment(outputs_, inputs_*outputs_).data(),
 					outputs_, inputs_);
   const auto insize = netvals.size();
-  BatchVecX a1 = weights*xin.matrix();// + bias;
+  BatchVecX a1 = weights*xin;
   a1.colwise() += bias;
   BatchVecX x1 = activation_func_(a1.array()).matrix();
   if (is_output_) {
     assert( insize == getNumWeights() );
     return x1;
-  }// else {
+  }
+  // we are in an internal layer
   assert( insize > getNumWeights() );
   const Eigen::Ref<const ArrayX> remNet = netvals.segment(num_weights_, insize-num_weights_); // remaining parameters to be passed on
   return next_layer_->predictRecurse( remNet, x1 ); // add l2 regularization terms for weight matrix
-    //}
 }

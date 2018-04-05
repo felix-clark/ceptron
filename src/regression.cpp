@@ -6,6 +6,7 @@ namespace {
 
   
 BatchArrayX ceptron::outputGate(RegressionType reg, const Eigen::Ref<const BatchArrayX>& aout) {
+// ArrayX ceptron::outputGate(RegressionType reg, const Eigen::Ref<const ArrayX>& aout) {
   switch (reg) {
   case RegressionType::Categorical:
     return Regressor<RegressionType::Categorical>::outputGate(aout);

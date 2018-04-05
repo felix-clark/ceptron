@@ -72,6 +72,7 @@ int main(int argc, char** argv) {
   FfnDyn netd(Reg, Act, Nin, Nh, Nout);
   netd.setL2Reg(l2reg);
   auto parsd = netd.randomWeights();
+  // BOOST_LOG_TRIVIAL(trace) << parsd; // looks fine
   AdaDelta msd(netd.num_weights());
   
   BOOST_LOG_TRIVIAL(info) << "running test on dynamic version";

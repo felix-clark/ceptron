@@ -2,6 +2,9 @@
 #include "global.hpp"
 #include <Eigen/Dense>
 
+// for debug only
+// #include <boost/log/trivial.hpp>
+
 namespace ceptron {
   enum class RegressionType {Categorical, LeastSquares, Poisson};
   // "Categorical" means "exclusive categorical", meaning y should be one-hot or zero and an implied "none" category is used for |y| < 1.
@@ -9,6 +12,7 @@ namespace ceptron {
 
   // runtime versions
   ceptron::BatchArrayX outputGate(RegressionType, const Eigen::Ref<const ceptron::BatchArrayX>& aout);
+  // ceptron::ArrayX outputGate(RegressionType, const Eigen::Ref<const ceptron::ArrayX>& aout);
   double costFuncVal(RegressionType, const Eigen::Ref<const ceptron::BatchArrayX>& xout, const Eigen::Ref<const ceptron::BatchArrayX>& yin);
 
   template <RegressionType Reg>
@@ -50,10 +54,12 @@ namespace ceptron {
   template <typename ArrT>
   ArrT Regressor<RegressionType::Categorical>::outputGate(const ArrT& aout) {
     using Eigen::exp;
-    ArrT expvals = exp(aout).eval();
+    // eval() actually totally screws it up! temporary object? don't call eval inside a function! (except perhaps in specific cases)
+    ArrT expvals = exp(aout);
     // (1.0 + expvals.colwise().sum()) is a dynamic-range row vector w/ the normalization factor for each column
-    return expvals.rowwise() / (1.0 + expvals.colwise().sum());
+    ArrT result = expvals.rowwise() / (1.0 + expvals.colwise().sum());
     // traditionally, softmax does not have this extra 1.0 term, but we want to generalize cleanly from 1D case  
+    return result;
   }
 
   template <>

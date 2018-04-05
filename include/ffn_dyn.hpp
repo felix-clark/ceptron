@@ -61,7 +61,7 @@ namespace ceptron {
       double costFuncRecurse(const Eigen::Ref<const ArrayX>& net, const BatchVecX& xin, const BatchVecX& yin) const;
       // returns the matrix needed for backprop
       // takes a non-const reference to fill the gradient with (hence "get" in the function name)
-      MatX getCostFuncGradRecurse(const Eigen::Ref<const ArrayX>& net, const BatchVecX& xin, const BatchVecX& yin, /*const*/ Eigen::Ref<ArrayX>/*&*/ gradnet) const;
+      MatX getCostFuncGradRecurse(const Eigen::Ref<const ArrayX>& net, const BatchVecX& xin, const BatchVecX& yin, Eigen::Ref<ArrayX> gradnet) const;
       VecX predictRecurse(const Eigen::Ref<const ArrayX>& net, const VecX& xin) const;
       
       size_t getNumInputs() const {return inputs_;}
