@@ -111,8 +111,8 @@ int main(int argc, char** argv) {
   
   FfnDyn netd(Reg, Act, Nin, Nh, Nout);
   netd.setL2Reg(l2reg);
-  auto parsd = netd.randomWeights();
-  // BOOST_LOG_TRIVIAL(trace) << parsd; // looks fine
+  ArrayX initparsd = netd.randomWeights();
+  ArrayX parsd = initparsd;
   AdaDelta msd(netd.num_weights());
   
   BOOST_LOG_TRIVIAL(info) << std::setprecision(4); // set this once
@@ -137,6 +137,9 @@ int main(int argc, char** argv) {
   // since this dataset is rather small, we'll do full batch gradient descent directly.
   Net net;
   net.randomInit(); // should be done by default now, but just to be explicit we'll re-do it here.
+  // try setting to same initialization as runtime net:
+  net.accessNetValue() = initparsd; // indeed this does result in identical results.
+  
   // from a programming perspective it seems preferable to not initialize to random variables, but we have to make sure to remember to randomize every time.
   BOOST_LOG_TRIVIAL(info) << "";
   BOOST_LOG_TRIVIAL(info) << "running test on static version";
