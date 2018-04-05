@@ -2,7 +2,6 @@
 #include "global.hpp"
 #include "slfn.hpp"
 #include "min_step.hpp"
-#include <boost/log/trivial.hpp>
 #include <functional>
 
 // long term it's probably not best organization to include all the training functions in here,

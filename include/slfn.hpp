@@ -2,7 +2,7 @@
 #include "global.hpp"
 #include "regression.hpp"
 #include "activation.hpp"
-#include <boost/log/trivial.hpp>
+// #include <boost/log/trivial.hpp>
 // #include <boost/log/sources/basic_logger.hpp> // could be useful in class defs
 #include <Eigen/Dense>
 
@@ -95,16 +95,17 @@ namespace ceptron {
     constexpr size_t N = Net::inputs;
     constexpr size_t M = Net::outputs;
     constexpr size_t P = Net::hiddens;
-  
-    if (Net::RegType == RegressionType::Categorical) {
-      // this if statement should be optimized away at compile-time
-      if ((y.colwise().sum().array() > 1.0).any()) {
-	// multiple nets can be used for non-exclusive categories
-	// TODO: implement logging system, and suppress this warning
-	BOOST_LOG_TRIVIAL(warning) << "warning: classification data breaks unitarity. this net assumes mutually exclusive categories." << std::endl;
-	BOOST_LOG_TRIVIAL(debug) << "y values:" << y.transpose();
-      }
-    }
+
+    // it's not worth introducing this dependency on boost in this header.
+    // if (Net::RegType == RegressionType::Categorical) {
+    //   // this if statement should be optimized away at compile-time
+    //   if ((y.colwise().sum().array() > 1.0).any()) {
+    // 	// multiple nets can be used for non-exclusive categories
+    // 	// TODO: implement logging system, and suppress this warning
+    // 	BOOST_LOG_TRIVIAL(warning) << "warning: classification data breaks unitarity. this net assumes mutually exclusive categories." << std::endl;
+    // 	BOOST_LOG_TRIVIAL(debug) << "y values:" << y.transpose();
+    //   }
+    // }
   
     // propagate forwards
     // it may be simpler to split into weights and biases

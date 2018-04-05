@@ -56,7 +56,6 @@ FfnDyn::Layer::Layer(InternalActivator, RegressionType reg,
   // , act_(act)
   , reg_(reg)
 {
-  BOOST_LOG_TRIVIAL(trace) << "in output layer constructor with " << ins << " inputs and " << outs << " outputs.";
   activation_func_ = std::bind(outputGate, reg, std::placeholders::_1);
 }
 
