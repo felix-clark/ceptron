@@ -125,7 +125,7 @@ int main(int argc, char** argv) {
   // std::srand( time(nullptr) );
   std::srand( 3490 );
   double l2reg = 0.05;
-  int numEpochs = 320; // AdaDelta trains pretty quickly, and probably starts to overfit. it does do better at categorizing a salamander as an amphibian rather than a reptile if we let it run more.
+  int numEpochs = 640; // AdaDelta trains pretty quickly, and probably starts to overfit. it does do better at categorizing a salamander as an amphibian rather than a reptile if we let it run more.
 
   { // do dynamic training
     FfnDyn netd(Reg, Act, Nin, Nh, Nout);
