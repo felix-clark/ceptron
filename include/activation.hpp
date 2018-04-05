@@ -69,7 +69,13 @@ namespace ceptron {
   template <>
   template <typename ArrT>
   ArrT ActivFunc<InternalActivator::Tanh>::activ(const ArrT& in) /*const*/ {
-    return tanh(in);  
+#if EIGEN_VERSION_AT_LEAST(3,3,0)
+    return tanh(in);
+#else
+    // tanh did not have a special definition in versions <= 3.2.
+    ArrT expSq = exp(2*in);
+    return (expSq-1)/(expSq+1);
+#endif
   }
 
   template <>

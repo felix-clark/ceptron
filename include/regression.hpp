@@ -25,8 +25,12 @@ namespace ceptron {
   template <> // class template specialization
   template <typename ArrT>
   double Regressor<RegressionType::Categorical>::costFuncVal(const ArrT& xout, const ArrT& yin) {
+#if EIGEN_VERSION_AT_LEAST(3,3,0)
     return  - (yin*log(xout)).sum() - ((1.0-yin.colwise().sum())*log1p(-xout.colwise().sum())).sum();
-    // return  - (yin*log(xout)).sum() - (1.0-yin.sum())*log1p(-xout.sum());
+#else
+    // there was no vectorized log1p before 3.3.
+    return  - (yin*log(xout)).sum() - ((1.0-yin.colwise().sum())*log(1.0-xout.colwise().sum())).sum();    
+#endif
   }
 
   template <>
