@@ -25,7 +25,7 @@ namespace {
   constexpr RegressionType Reg=RegressionType::Categorical;
   // constexpr InternalActivator Act=InternalActivator::Softplus;
   constexpr InternalActivator Act=InternalActivator::Tanh;
-  using Net = SlfnStatic<Nin, Nout, Nh>;
+  using Net = SlfnStatic<Nin, Nout, Nh, Reg, Act>;
 
   namespace logging = boost::log;
   using std::string;
@@ -46,24 +46,48 @@ Vec<Nin> x_woodpecker();
 Vec<Nin> x_salamander();
 
 void printPredictions(const FfnDyn& net, const ArrayX& pars) {
-  vector<pair<string, VecX>> animals = {
+  static const vector<pair<string, VecX>> animals = {
     {"dog", x_dog()},
     {"woodpecker", x_woodpecker()},
     {"salamander", x_salamander()},
   };
   for (const auto& animal : animals) {
     BOOST_LOG_TRIVIAL(info) << animal.first << ":";
-    ArrayX prediction = net.prediction(pars, animal.second).array();
-    auto candidateIndices = (prediction > 0.2);
+    ArrayX pred = net.prediction(pars, animal.second).array();
+    auto candidateIndices = (pred > 0.2);
     for (size_t i=0; i<Nout; ++i) {
       if (candidateIndices[i]) {
-	BOOST_LOG_TRIVIAL(info) << "  " << toString(i+1) << "  " << prediction[i]*100 << "%";
+	BOOST_LOG_TRIVIAL(info) << "  " << toString(i+1) << "  " << pred[i]*100 << "%";
       }
     }
     // a full printout
-    BOOST_LOG_TRIVIAL(trace) << animal.first << ": " << prediction.transpose();
+    BOOST_LOG_TRIVIAL(trace) << animal.first << ": " << pred.transpose();
   }
 }
+
+// some kind of enable_if would be good, to make sure it's a SlfnStatic.
+// if we implemented the CRTP we could check that it derived from SlfnBase.
+template <typename Net>
+void printPredictions(const Net& net/*, const ArrayX& pars*/) {
+  static const vector<pair<string, VecX>> animals = {
+    {"dog", x_dog()},
+    {"woodpecker", x_woodpecker()},
+    {"salamander", x_salamander()},
+  };
+  for (const auto& animal : animals) {
+    BOOST_LOG_TRIVIAL(info) << animal.first << ":";
+    ArrayX pred = prediction(net, animal.second).array();
+    auto candidateIndices = (pred > 0.2);
+    for (size_t i=0; i<Nout; ++i) {
+      if (candidateIndices[i]) {
+	BOOST_LOG_TRIVIAL(info) << "  " << toString(i+1) << "  " << pred[i]*100 << "%";
+      }
+    }
+    // a full printout
+    BOOST_LOG_TRIVIAL(trace) << animal.first << ": " << pred.transpose();
+  }
+}
+
 
 int main(int argc, char** argv) {
   logging::core::get()->set_filter
@@ -94,12 +118,9 @@ int main(int argc, char** argv) {
   BOOST_LOG_TRIVIAL(info) << std::setprecision(4); // set this once
   BOOST_LOG_TRIVIAL(info) << "running test on dynamic version";
   BOOST_LOG_TRIVIAL(debug) << "parameter space has dimension " << netd.num_weights();
-
-  BOOST_LOG_TRIVIAL(debug) << "pre-training predictions (should just be random):";
-  printPredictions(netd, parsd);
   
   for (int i_ep=0; i_ep<numEpochs; ++i_ep) {
-    if (i_ep % (numEpochs/4) == numEpochs/8) {
+    if (i_ep % (numEpochs/4) == 0) {
       BOOST_LOG_TRIVIAL(info) << "beginning " << i_ep << "th epoch";
       BOOST_LOG_TRIVIAL(info) << "cost function: " << netd.costFunc(parsd, xb, yb);
       BOOST_LOG_TRIVIAL(debug) << "mid-training predictions:";
@@ -113,11 +134,7 @@ int main(int argc, char** argv) {
   
 #ifndef NOSTATIC
   
-  // BOOST_LOG_TRIVIAL( debug ) << '\n' << xb.transpose();
-  // BOOST_LOG_TRIVIAL( debug ) << '\n' << yb.transpose();
-
   // since this dataset is rather small, we'll do full batch gradient descent directly.
-
   Net net;
   net.randomInit(); // should be done by default now, but just to be explicit we'll re-do it here.
   // from a programming perspective it seems preferable to not initialize to random variables, but we have to make sure to remember to randomize every time.
@@ -128,37 +145,28 @@ int main(int argc, char** argv) {
   // AcceleratedGradient minstep(Net::size);
   AdaDelta minstep(Net::size); // this is a decent first choice since it is not supposed to depend strongly on hyperparameters
 
-  BOOST_LOG_TRIVIAL(debug) << "pre-training predictions (should just be random):";
-  BOOST_LOG_TRIVIAL(debug) << "dog: " << prediction<Net, Reg, Act>(net, x_dog()).transpose();
-  BOOST_LOG_TRIVIAL(debug) << "woodpecker: " << prediction<Net, Reg, Act>(net, x_woodpecker()).transpose();
-  BOOST_LOG_TRIVIAL(debug) << "salamander: " << prediction<Net, Reg, Act>(net, x_salamander()).transpose();
-  
   for (int i_ep=0; i_ep<numEpochs; ++i_ep) {
-    if (i_ep % (numEpochs/4) == numEpochs/8) {
+    if (i_ep % (numEpochs/4) == 0) {
       BOOST_LOG_TRIVIAL(info) << "beginning " << i_ep << "th epoch";
-      BOOST_LOG_TRIVIAL(info) << "cost function: " << costFunc<Net, Reg, Act>(net, xb, yb, l2reg);
+      BOOST_LOG_TRIVIAL(info) << "cost function: " << costFunc(net, xb, yb, l2reg);
       BOOST_LOG_TRIVIAL(debug) << "mid-training predictions:";
-      BOOST_LOG_TRIVIAL(debug) << "dog: " << prediction<Net, Reg, Act>(net, x_dog()).transpose();
-      BOOST_LOG_TRIVIAL(debug) << "woodpecker: " << prediction<Net, Reg, Act>(net, x_woodpecker()).transpose();
-      BOOST_LOG_TRIVIAL(debug) << "salamander: " << prediction<Net, Reg, Act>(net, x_salamander()).transpose();
+      printPredictions(net);
     }
-    trainSlfnStatic<Net, Reg, Act>( net, minstep, xb, yb, l2reg );
+    trainSlfnStatic<Net>( net, minstep, xb, yb, l2reg );
   }
 
   BOOST_LOG_TRIVIAL(info) << "post-training predictions:";
-  BOOST_LOG_TRIVIAL(info) << "dog: " << prediction<Net, Reg, Act>(net, x_dog()).transpose();
-  BOOST_LOG_TRIVIAL(info) << "woodpecker: " << prediction<Net, Reg, Act>(net, x_woodpecker()).transpose();
-  BOOST_LOG_TRIVIAL(info) << "salamander: " << prediction<Net, Reg, Act>(net, x_salamander()).transpose();
+  printPredictions(net);
 
 #else
   BOOST_LOG_TRIVIAL(info) << "Skipped testing static nets.";
-#endif // NOSTATIC
+#endif // ifndef NOSTATIC
   
   return 0;
 }
 
 
-// get batch that is full data in test sample
+// get batch that consists of full data in test sample
 pair< BatchVec<Nin>, BatchVec<Nout> > readFromFile(string fname) {
   ifstream fin(fname);
   if (!fin.is_open()) {

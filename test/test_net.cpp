@@ -19,34 +19,31 @@ namespace {
 
 // borrow this function from other testing utility to check the neural net's derivative
 // we will really want to check element-by-element
-template <typename Net,
-// template <size_t Nin, size_t Nout, size_t Nhid,
-	  RegressionType Reg, InternalActivator Act>
+template <typename Net>
 void check_gradient(Net& net, const BatchVec<Net::inputs>& xin, const BatchVec<Net::outputs>& yin, double l2reg=0.01, double ep=1e-4, double tol=1e-8) {
   constexpr size_t Npar = Net::size;
-  // const/*expr*/ size_t Npar = net.size();
-  const Array</*Npar*/> p = net.getNetValue(); // don't make this a reference: the internal data will change!
+  const ArrayX p = net.getNetValue(); // don't make this a reference: the internal data will change!
   // func_grad_res</*Npar*/> fgvals = costFuncAndGrad<Nin, Nout, Nhid, Reg, Act>(net, xin, yin, l2reg); // this must be done before 
-  func_grad_res</*Npar*/> fgvals = costFuncAndGrad<Net, Reg, Act>(net, xin, yin, l2reg); // this must be done before
+  func_grad_res<> fgvals = costFuncAndGrad(net, xin, yin, l2reg); // this must be done before
   // or does the following work? :
   // func_grad_res</*Npar*/> fgvals = costFuncAndGrad<Reg, Act>(net, xin, yin, l2reg); // this must be done before 
   double fval = fgvals.f; // don't think we actually need this, but it might be a nice check
-  Array</*Npar*/> evalgrad = fgvals.g;
+  ArrayX evalgrad = fgvals.g;
 
   BOOST_LOG_TRIVIAL(trace) << "about to try to compute numerical derivative";
   
-  Array</*Npar*/> df(Npar);// maybe can do this slickly with colwise() or rowwise() ?
+  ArrayX df(Npar);// maybe can do this slickly with colwise() or rowwise() ?
   for (size_t i_f=0; i_f<Npar; ++i_f) {
-    Array</*Npar*/> dp = Array<Npar>::Zero(Npar);
+    ArrayX dp = ArrayX::Zero(Npar);
     // BOOST_LOG_TRIVIAL(trace) << "declaring dpi";
     double dpi = ep*sqrt(1.0 + p(i_f)*p(i_f));
     dp(i_f) = dpi;
-    Array</*Npar*/> pplus = p + dp;
-    Array</*Npar*/> pminus = p - dp;
+    ArrayX pplus = p + dp;
+    ArrayX pminus = p - dp;
     net.accessNetValue() = pplus;
-    double fplusi = costFunc<Net, Reg, Act>(net, xin, yin, l2reg);
+    double fplusi = costFunc(net, xin, yin, l2reg);
     net.accessNetValue() = pminus;
-    double fminusi = costFunc<Net, Reg, Act>(net, xin, yin, l2reg);
+    double fminusi = costFunc(net, xin, yin, l2reg);
     df(i_f) = (fplusi - fminusi)/(2*dpi);
   }
   
@@ -167,19 +164,19 @@ int main(int, char**) {
   BOOST_LOG_TRIVIAL(info) << "array has " << pars.size() << " parameters.";
 
   // do we need to feed in the Net template parameter, or can it be inferred from testNet?
-  check_gradient<Net, Reg, Act>( testNet, input, output );
+  check_gradient( testNet, input, output );
 
   testNet.randomInit();
   input.setRandom();
   // output << 1e-6, 0.02, 0.2, 0.01;
   output.setRandom();
-  check_gradient<Net, Reg, Act>( testNet, input, output );
+  check_gradient( testNet, input, output );
 
   testNet.randomInit();
   input.setRandom(); // should also check pathological x values
   // output << 0.9, -0.1, 10.0, 0.1; // this one has nonsensical values but we can check the gradient regardless (it may give warning messages)
   output.setRandom();
-  check_gradient<Net, Reg, Act>( testNet, input, output );
+  check_gradient( testNet, input, output );
 
   testNet.toFile("testcopy.net");
   Net netCopy;

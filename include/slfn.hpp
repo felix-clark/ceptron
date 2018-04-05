@@ -17,18 +17,33 @@ namespace { // protect these definitions locally; don't pollute global namespace
 }
 
 namespace ceptron {
+
+  // could a base case using the CRTP help avoid some of the awkwardness in the definitions below?
+  // template <typename Derived>
+  // class SlfnBase
+  // {
+  // public:
+  //   static constexpr size_t size = Derived::size;
+  //   // using Derived::randomInit; // this doesn't work
+  // };
+  
   // we will really want to break this apart (into layers?) and generalize it but first let's get a simple working example.
   // this is a "single hidden layer feedforward network" (SLFN) with 1 output
   // a multi-layer generalization is a FFNN
   // N is input size, M is output layer size, P is the hidden layer size
-  template <size_t N, size_t M=1, size_t P=(N+M)/2>
-  class SlfnStatic
+  template <size_t N, size_t M=1, size_t P=(N+M)/2,
+	    RegressionType Reg=RegressionType::Categorical,
+	    InternalActivator Act=InternalActivator::Tanh>
+  class SlfnStatic // : public SlfnBase<SlfnStatic<N,M,P,Reg,Act>>
   {
   public:
     static constexpr size_t inputs = N;
     static constexpr size_t outputs = M;
     static constexpr size_t hiddens = P; // this member won't generalize well, so we should replace typedefs for 1st, 2nd layer matrix types, for instance
+    static constexpr RegressionType RegType = Reg;
+    static constexpr InternalActivator ActType = Act;
   private:
+    using this_t = SlfnStatic<N,M,P,Reg,Act>; // just a shorthand
     static constexpr size_t size_w1_ = P*(N+1); // first layer
     static constexpr size_t size_w2_ = M*(P+1); // output layer
     // static constexpr size_t size_ = size_w1_ + size_w2_; // total size of data required to store net
@@ -50,8 +65,8 @@ namespace ceptron {
     const Array<>& getNetValue() const {return net_;}
     Array<>& accessNetValue() {return net_;} // allows use of in-place operations
 
-    bool operator==(const SlfnStatic<N,M,P>& other) const;
-    bool operator!=(const SlfnStatic<N,M,P>& other) const {return !(this->operator==(other));}
+    bool operator==(const this_t& other) const;
+    bool operator!=(const this_t& other) const {return !(this->operator==(other));}
 
     void toFile(const std::string& fname) const;
     void fromFile(const std::string& fname);
@@ -65,7 +80,7 @@ namespace ceptron {
     // define stream operators here at the end
     // defining this in the class template is annoying but it allows us to avoid introducing
     //  another layer of template parameters. known as the "making new friends" idiom.
-    friend istream& operator>> (istream& in, SlfnStatic<N, M, P>& me) {
+    friend istream& operator>> (istream& in, this_t& me) {
       // TODO: some metadata at the top would be nice for verification
       // let's wait until we have a more general setup (e.g. multilayer) before we worry about that.
       for (size_t i=0; i<me.size; ++i) {
@@ -80,7 +95,7 @@ namespace ceptron {
       }
       return in;
     }
-    friend ostream& operator<<(ostream& out, const SlfnStatic<N, M, P>& me) {
+    friend ostream& operator<<(ostream& out, const this_t& me) {
       for (size_t i=0; i<me.size; ++i) {
 	// we do want to go hexfloat, otherwise we suffer a precision loss
 	// removing newline doesn't work even w/ binary, possibly because of the issue discussed in operatior>>().
@@ -92,8 +107,10 @@ namespace ceptron {
   };
 
 
-  template <size_t N, size_t M, size_t P>
-  void SlfnStatic<N,M,P>::randomInit() {
+  template <size_t N, size_t M, size_t P,
+  	    RegressionType Reg,
+  	    InternalActivator Act>
+  void SlfnStatic<N,M,P,Reg,Act>::randomInit() {
     // it is better to scale random initialization by 1/sqrt(n) where n is the number of inputs in a synapse.
     //   this results in a variance of the neuron output that is not dependent on the number of inputs.
     //   dividing by the total size is just a rough approximation
@@ -106,9 +123,7 @@ namespace ceptron {
   // we should be able to build up multi-layer networks by having each layer work as its own and having their forward and backward propagations interact with each other
 
 
-  template <typename Net,
-	    RegressionType Reg,
-	    InternalActivator Act>
+  template <typename Net>
   ceptron::func_grad_res<>
   costFuncAndGrad(const Net& net, const BatchVec<Net::inputs>& x0, const BatchVec<Net::outputs>& y, double l2reg = 0.0) {
     const auto batchSize = x0.cols();
@@ -118,7 +133,7 @@ namespace ceptron {
     constexpr size_t M = Net::outputs;
     constexpr size_t P = Net::hiddens;
   
-    if (Reg == RegressionType::Categorical) {
+    if (Net::RegType == RegressionType::Categorical) {
       // this if statement should be optimized away at compile-time
       if ((y.colwise().sum().array() > 1.0).any()) {
 	// multiple nets can be used for non-exclusive categories
@@ -138,16 +153,16 @@ namespace ceptron {
     BatchVec<P> a1 = w1.template leftCols<1>() * BatchVec<1>::Ones(1,batchSize) // bias terms
       + w1.template rightCols<N>() * x0; // weights term
     // apply activation function element-wise; need to specify the template type
-    BatchVec<P> x1 = ActivFunc<Act>::template activ< BatchArray<P> >(a1.array()).matrix();
+    BatchVec<P> x1 = ActivFunc<Net::ActType>::template activ< BatchArray<P> >(a1.array()).matrix();
   
     BatchVec<M> a2 = w2.template leftCols<1>() * BatchVec<1>::Ones(1, batchSize)
       + w2.template rightCols<P>() * x1;
     assert( a2.cols() == batchSize );
   
-    BatchVec<M> x2 = Regressor<Reg>::template outputGate< BatchArray<M> >(a2.array()).matrix();
+    BatchVec<M> x2 = Regressor<Net::RegType>::template outputGate< BatchArray<M> >(a2.array()).matrix();
     assert( x2.cols() == batchSize );
 
-    double costFuncVal = Regressor<Reg>::template costFuncVal< BatchArray<M> >(x2.array(), y.array());
+    double costFuncVal = Regressor<Net::RegType>::template costFuncVal< BatchArray<M> >(x2.array(), y.array());
     double costFuncReg = w1.template rightCols<N>().array().square().sum()
       + w2.template rightCols<P>().array().square().sum(); // lambda*sum (weights^2), but we don't include the bias terms
     costFuncVal += l2reg * costFuncReg;
@@ -165,7 +180,7 @@ namespace ceptron {
     // error term for output layer
     BatchVec<M> d2 = x2 - y;
   
-    BatchVec<P> e1 = ActivFunc<Act>::template activToD< BatchArray<P> >(x1.array()).matrix();
+    BatchVec<P> e1 = ActivFunc<Net::ActType>::template activToD< BatchArray<P> >(x1.array()).matrix();
     BatchVec<P> d1 = e1.cwiseProduct( (w2.template rightCols<P>()).transpose() * d2 );
 
     // Array<SlfnStatic<N,M,P>::size()> costFuncGrad;
@@ -188,9 +203,7 @@ namespace ceptron {
 
   // we need to be careful w/ this function because it's similar to the version w/ gradient, but stops sooner.
   // a compositional style of this function inside the one that includes the gradient doesn't work trivially since the backprop needs some intermediate results from this calculation
-  template <typename Net,
-	    RegressionType Reg,
-	    InternalActivator Act>
+  template <typename Net>
   double costFunc(const Net& net, const BatchVec<Net::inputs>& x0, const BatchVec<Net::outputs>& y, double l2reg = 0.0) {
 
     constexpr size_t N = Net::inputs;
@@ -206,13 +219,13 @@ namespace ceptron {
     // a_n should just be temporary expressions
     BatchVec<P> a1 = w1.template leftCols<1>() * BatchVec<1>::Ones(1,batchSize) // bias terms
       + w1.template rightCols<N>() * x0; // weights term
-    BatchVec<P> x1 = ActivFunc<Act>::template activ< BatchArray<P> >(a1.array()).matrix(); // net output of layer 1
+    BatchVec<P> x1 = ActivFunc<Net::ActType>::template activ< BatchArray<P> >(a1.array()).matrix(); // net output of layer 1
     BatchVec<M> a2 = w2.template leftCols<1>() * BatchVec<1>::Ones(1, batchSize)
       + w2.template rightCols<P>() * x1;
-    BatchVec<M> x2 = Regressor<Reg>::template outputGate< BatchArray<M> >(a2.array()).matrix();
+    BatchVec<M> x2 = Regressor<Net::RegType>::template outputGate< BatchArray<M> >(a2.array()).matrix();
 
     // we might return f and gradient together... or maybe we just cache them
-    double costFuncVal = Regressor<Reg>::template costFuncVal< BatchArray<M> >(x2.array(), y.array());
+    double costFuncVal = Regressor<Net::RegType>::template costFuncVal< BatchArray<M> >(x2.array(), y.array());
     double costFuncReg = w1.template rightCols<N>().array().square().sum()
       + w2.template rightCols<P>().array().square().sum(); // lambda*sum (weights^2), but we don't include the bias terms
     costFuncVal += l2reg * costFuncReg;
@@ -222,9 +235,7 @@ namespace ceptron {
   }
 
   // this returns a prediction for a single data point x0
-  template <typename Net,
-	    RegressionType Reg,
-	    InternalActivator Act>
+  template <typename Net>
   Vec<Net::outputs> prediction(const Net& net, const Vec<Net::inputs>& x0) {
     constexpr size_t N = Net::inputs;
     constexpr size_t M = Net::outputs;
@@ -237,22 +248,26 @@ namespace ceptron {
     // a_n should just be temporary expressions
     Vec<P> a1 = w1.template leftCols<1>() // bias terms
       + w1.template rightCols<N>() * x0; // weights term
-    Vec<P> x1 = ActivFunc<Act>::template activ< Array<P> >(a1.array()).matrix(); // net output of layer 1
+    Vec<P> x1 = ActivFunc<Net::ActType>::template activ< Array<P> >(a1.array()).matrix(); // net output of layer 1
     Vec<M> a2 = w2.template leftCols<1>()
       + w2.template rightCols<P>() * x1;
-    Vec<M> x2 = Regressor<Reg>::template outputGate< Array<M> >(a2.array()).matrix();
+    Vec<M> x2 = Regressor<Net::RegType>::template outputGate< Array<M> >(a2.array()).matrix();
     return x2;
   }
 
-
-  template <size_t N, size_t M, size_t P>
-  bool SlfnStatic<N,M,P>::operator==(const SlfnStatic<N,M,P>& other) const {
+  // instead of all this, we could declare a base class and use the CRTP
+  template <size_t N, size_t M, size_t P,
+	    RegressionType Reg,
+	    InternalActivator Act>
+  bool SlfnStatic<N,M,P,Reg,Act>::operator==(const SlfnStatic<N,M,P,Reg,Act>& other) const {
     return (this->net_ == other.net_).all();
   }
 
 
-  template <size_t N, size_t M, size_t P>
-  void SlfnStatic<N,M,P>::toFile(const std::string& fname) const {
+  template <size_t N, size_t M, size_t P,
+	    RegressionType Reg,
+	    InternalActivator Act>
+  void SlfnStatic<N,M,P,Reg,Act>::toFile(const std::string& fname) const {
     // ios::trunc erases any previous content in the file.
     ofstream fout(fname , ios::binary | ios::trunc );
     if (!fout.is_open()) {
@@ -263,8 +278,10 @@ namespace ceptron {
     fout.close();
   }
 
-  template <size_t N, size_t M, size_t P>	  
-  void SlfnStatic<N,M,P>::fromFile(const std::string& fname) {
+  template <size_t N, size_t M, size_t P,
+	    RegressionType Reg,
+	    InternalActivator Act>	  
+  void SlfnStatic<N,M,P,Reg,Act>::fromFile(const std::string& fname) {
     ifstream fin(fname, ios::binary);
     if (!fin.is_open()) {
       BOOST_LOG_TRIVIAL(error) << "could not open file " << fname << " for reading.";
