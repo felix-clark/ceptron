@@ -26,7 +26,7 @@ void ceptron::toFile(const ceptron::ArrayX& net, const std::string& fname) {
 
     // hexfloat isn't implemented in g++4, but we could put it to use there.
 #ifdef NO_HEXFLOAT
-    fout << std::setprecision(16) << net(i) << '\n';
+    fout << std::setprecision(17) << net(i) << '\n';
 #else
     fout << std::hexfloat << net(i) << '\n';
 #endif
@@ -51,7 +51,7 @@ ceptron::ArrayX ceptron::fromFile(const std::string& fname) {
     
     std::stringstream s;
 #ifdef NO_HEXFLOAT
-    s << std::setprecision(16) << line; // is it necessary when reading from file?
+    s << line;
 #else
     s << std::hexfloat << line;
 #endif
