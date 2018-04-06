@@ -1,7 +1,6 @@
 #include "ionet.hpp"
 #include "log.hpp"
 #include <fstream>
-#include <ios> // for hexfloat
 
 namespace {
   using namespace ceptron;
