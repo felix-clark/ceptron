@@ -2,6 +2,13 @@
 #include "log.hpp"
 #include <fstream>
 
+#if (not defined(__clang__)) && defined(__GNUC__) && __GNUC__ < 5
+#define NO_HEXFLOAT
+// we need a workaround with high-precision output
+#include <iomanip>
+#endif
+
+
 namespace {
   using namespace ceptron;
 }
@@ -16,7 +23,13 @@ void ceptron::toFile(const ceptron::ArrayX& net, const std::string& fname) {
   for (int i=0; i<net.size(); ++i) {
     // we do want to go hexfloat, otherwise we suffer a precision loss
     // removing newline doesn't work even w/ binary, possibly because of the issue discussed in fromFile().
+
+    // hexfloat isn't implemented in g++4, but we could put it to use there.
+#ifdef NO_HEXFLOAT
+    fout << std::setprecision(16) << net(i) << '\n';
+#else
     fout << std::hexfloat << net(i) << '\n';
+#endif
   }
   fout.close();
 } // toFile()
@@ -37,7 +50,11 @@ ceptron::ArrayX ceptron::fromFile(const std::string& fname) {
     // see: https://stackoverflow.com/questions/42604596/read-and-write-using-stdhexfloat
     
     std::stringstream s;
+#ifdef NO_HEXFLOAT
+    s << std::setprecision(16) << line; // is it necessary when reading from file?
+#else
     s << std::hexfloat << line;
+#endif
     vals.push_back(std::strtod(s.str().data(), nullptr));
   }
     
