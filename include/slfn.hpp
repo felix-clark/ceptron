@@ -13,7 +13,7 @@ namespace ceptron {
   class SlfnBase
   {
   public:
-    static constexpr size_t size = Derived::size; // this pattern does actually work. is it useful?
+    // static constexpr size_t size = Derived::size; // this pattern does actually work. is it useful? // it actually fails in clang 3. we aren't using it now anyway so we'll let it stay commented.
   private:
     SlfnBase() = default;  // making the constructor private and the derived class a friend ensures
     friend Derived;        // that a derived class can only give its own type as a parameter
