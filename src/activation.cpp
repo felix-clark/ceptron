@@ -17,6 +17,8 @@ ceptron::BatchArrayX ceptron::activ(InternalActivator act, const Eigen::Ref<cons
     return ActivFunc<InternalActivator::Softplus>::activ(in);
   case InternalActivator::LReLU:
     return ActivFunc<InternalActivator::LReLU>::activ(in);
+  case InternalActivator::Softsign:
+    return ActivFunc<InternalActivator::Softsign>::activ(in);
   }
   throw std::runtime_error("unimplemented runtime activation function");
 }
@@ -34,6 +36,8 @@ ceptron::BatchArrayX ceptron::activToD(InternalActivator act, const Eigen::Ref<c
     return ActivFunc<InternalActivator::Softplus>::activToD(x);
   case InternalActivator::LReLU:
     return ActivFunc<InternalActivator::LReLU>::activToD(x);    
+  case InternalActivator::Softsign:
+    return ActivFunc<InternalActivator::Softsign>::activToD(x);
   }
   throw std::runtime_error("unimplemented runtime activation derivative function");  
 }

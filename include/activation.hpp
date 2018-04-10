@@ -11,7 +11,7 @@ namespace ceptron {
   // but it's a pedagogical choice so we'll keep it as an option. (also used in log reg, tho we specialize output nodes)
   // Tanh is better (since it's centered around 0) but rectified linear units (ReLU) and variations are popular now.
   // Softplus is a smooth version of an ReLU but is not as trivial to get the derivative of.
-  enum class InternalActivator {Logit, Tanh, ReLU, Softplus, LReLU};
+  enum class InternalActivator {Logit, Tanh, ReLU, Softplus, LReLU, Softsign};
   /// a number of activation functions can be generalized with hyperparameters, even on a per-channel level.
   // implementing this will require some interface changes, but it's not yet a priority in terms of making this library useful.
   // see https://arxiv.org/pdf/1710.05941.pdf for an exploration of various other activation functions
@@ -149,4 +149,23 @@ namespace ceptron {
     // 					   0.5*(1+alpha)*ArrT::Ones()));
   }
 
+  // ---- Softsign ----
+  // this choice may be useful when dealing w/ vanishing gradients, since
+  //  the derivatives are only polynomial-suppressed at large values.
+  
+  template <>
+  template <typename ArrT>
+  ArrT ActivFunc<InternalActivator::Softsign>::activ(const ArrT& in) {
+    return in/(1.0+abs(in));
+  }
+
+  template <>
+  template <typename ArrT>
+  ArrT ActivFunc<InternalActivator::Softsign>::activToD(const ArrT& act) {
+    // this one is easier to compute in terms of input rather than the activation itself
+    // return (1/(1+abs(in)).square());
+    return (abs(act)-1).square();
+  }
+
+  
 } // namespace ceptron

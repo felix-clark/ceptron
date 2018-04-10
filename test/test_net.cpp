@@ -21,11 +21,7 @@ namespace {
 template <typename Net>
 void check_gradient(Net& net, const ArrayX& p, const BatchVec<Net::inputs>& xin, const BatchVec<Net::outputs>& yin, double ep=1e-4, double tol=1e-8) {
   constexpr size_t Npar = Net::size;
-  // const ArrayX p = net.getNetValue(); // don't make this a reference: the internal data will change!
-  // func_grad_res</*Npar*/> fgvals = costFuncAndGrad<Nin, Nout, Nhid, Reg, Act>(net, xin, yin, l2reg); // this must be done before 
   func_grad_res fgvals = costFuncAndGrad(net, p, xin, yin); // this must be done before
-  // or does the following work? :
-  // func_grad_res</*Npar*/> fgvals = costFuncAndGrad<Reg, Act>(net, xin, yin, l2reg); // this must be done before 
   double fval = fgvals.f; // don't think we actually need this, but it might be a nice check
   ArrayX evalgrad = fgvals.g;
 
@@ -113,7 +109,8 @@ int main(int, char**) {
   // constexpr InternalActivator Act=InternalActivator::ReLU; // we had gradient issues w/ ReLU because we were overriding it accidentally
   // however the nested select() to attempt to check for x=0 screws up the gradient completely
   // constexpr InternalActivator Act=InternalActivator::LReLU;
-  constexpr InternalActivator Act=InternalActivator::Softplus;
+  // constexpr InternalActivator Act=InternalActivator::Softplus;
+  constexpr InternalActivator Act=InternalActivator::Softsign;
   constexpr int batchSize = 16;
 
   BatchVec<Nin> input(Nin, batchSize); // i guess we need the length in the constructor still?
