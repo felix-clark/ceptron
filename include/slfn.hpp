@@ -73,8 +73,8 @@ namespace ceptron {
     // Map< Mat<P, N> >((net.template segment<P*N>(P)).data()) = Mat<P, N>::Random()/sqrt(N);
     // Map< Mat<M, P> >((net.template segment<M*P>(P*(N+1)+M)).data()) = Mat<M, P>::Random()/sqrt(P);
     // Glorot and Bengio suggest the following initialization instead:
-    Map< Mat<P, N> >((net.template segment<P*N>(P)).data()) = 6.0*Mat<P, N>::Random()/sqrt(N+P);
-    Map< Mat<M, P> >((net.template segment<M*P>(P*(N+1)+M)).data()) = 6.0*Mat<M, P>::Random()/sqrt(P+M);
+    Map< Mat<P, N> >((net.template segment<P*N>(P)).data()) = Mat<P, N>::Random()*sqrt(6.0/(N+P));
+    Map< Mat<M, P> >((net.template segment<M*P>(P*(N+1)+M)).data()) = Mat<M, P>::Random()*sqrt(6.0/(P+M));
     return net;
   }
 

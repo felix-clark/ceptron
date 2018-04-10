@@ -83,7 +83,7 @@ ArrayX FfnDyn::Layer::randParsRecurse(int pars_left) const {
   //  or else the variance of the matrix multiplication will scale with size of the previous layer
   // pars.segment(outputs_, inputs_*outputs_) = ArrayX::Random(inputs_*outputs_)/sqrt(inputs_);
   // Glorot and Bengio suggest the following instead (helpful for both directions of propagation):
-  pars.segment(outputs_, inputs_*outputs_) = 6.0*ArrayX::Random(inputs_*outputs_)/sqrt(inputs_+outputs_);
+  pars.segment(outputs_, inputs_*outputs_) = ArrayX::Random(inputs_*outputs_)*sqrt(6.0/(inputs_+outputs_));
   if (is_output_) {
     assert( static_cast<int>(num_weights_) == pars_left );
     return pars;
