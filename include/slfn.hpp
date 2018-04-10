@@ -100,8 +100,8 @@ namespace ceptron {
       if ((y.colwise().sum().array() > 1.0).any()) {
     	// multiple nets can be used for non-exclusive categories
     	// TODO: implement logging system, and suppress this warning
-    	LOG_WARNING("classification data breaks unitarity. this net assumes mutually exclusive categories.");
-    	LOG_DEBUG("y values:" << y.transpose());
+    	LOG_DEBUG("classification data breaks unitarity. this net assumes mutually exclusive categories.");
+    	LOG_TRACE("y values:" << y.transpose());
       }
     }
   
