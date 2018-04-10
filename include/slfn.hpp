@@ -43,7 +43,6 @@ namespace ceptron {
     // constexpr static size_t size() {return size_;}
     SlfnStatic() = default; // don't forget to randomly initialize
     // ~SlfnStatic() = default;
-    // static Array<size> randomWeights(); // returns an appropriate random initialization // make non-member function
     // this could be useful for indicating which data elements are most relevant.
     Array<N> inputLayerActivation(const Vec<N>& in) const; // returns activation from single input. these will no longer be cached
     Array<P> hiddenLayerActivation(const Vec<N>& in) const; // they don't actually need to be member functions
@@ -51,8 +50,6 @@ namespace ceptron {
     auto getFirstSynapses(const ArrayX& net) const {return Map< const Mat<P, N+1> >(net.data());};
     auto getSecondSynapses(const ArrayX& net) const
     {return Map< const Mat<M, P+1> >(net.template segment<size_w2_>(size_w1_).data());};
-    // const Array<>& getNetValue() const {return net_;}
-    // Array<>& accessNetValue() {return net_;} // allows use of in-place operations
 
     void setL2Reg(double lambda) {l2_lambda_=lambda;}
     double getL2Reg() const {return l2_lambda_;}
@@ -61,9 +58,6 @@ namespace ceptron {
     // l2 regularization parameter
     double l2_lambda_=0.;
     
-    // we will likely move to not storing the network data directly in this class.
-    // it may make sense to declare a struct (union) of functions + net data
-    // Array<> net_ = Array<size>::Zero(size);
   }; // class SlfnStatic
 
   template <typename Net>
@@ -72,12 +66,15 @@ namespace ceptron {
     constexpr size_t N = Net::inputs;
     constexpr size_t P = Net::hiddens;
     constexpr size_t M = Net::outputs;
-    // using Net = SlfnStatic<N,M,P,Reg,Act>;
     Array<Net::size> net = Array<Net::size>::Zero(); // set all to zero - biases should be initialized to zero
+    // Eigen uses rand, so the random numbers can be seeded by a call to std::srand().
     // the weight variances should be scaled down by a factor of the square root of the # of their inputs,
     //  so that the variance of their output is not a function of the number of inputs.
-    Map< Mat<P, N> >((net.template segment<P*N>(P)).data()) = Mat<P, N>::Random()/sqrt(N);
-    Map< Mat<M, P> >((net.template segment<M*P>(P*(N+1)+M)).data()) = Mat<M, P>::Random()/sqrt(P);
+    // Map< Mat<P, N> >((net.template segment<P*N>(P)).data()) = Mat<P, N>::Random()/sqrt(N);
+    // Map< Mat<M, P> >((net.template segment<M*P>(P*(N+1)+M)).data()) = Mat<M, P>::Random()/sqrt(P);
+    // Glorot and Bengio suggest the following initialization instead:
+    Map< Mat<P, N> >((net.template segment<P*N>(P)).data()) = 6.0*Mat<P, N>::Random()/sqrt(N+P);
+    Map< Mat<M, P> >((net.template segment<M*P>(P*(N+1)+M)).data()) = 6.0*Mat<M, P>::Random()/sqrt(P+M);
     return net;
   }
 
