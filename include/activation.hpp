@@ -8,10 +8,10 @@
 namespace ceptron {
 
   // logit functions are not typically used for internal activation functions,
-  // but it's a pedagogical choice so we'll keep it as an option. (also used in log reg, tho we specialize output nodes)
+  // but it's a pedagogical choice so we'll keep it as an option. (also used in log reg, tho output nodes are currently specialized)
   // Tanh is better (since it's centered around 0) but rectified linear units (ReLU) and variations are popular now.
   // Softplus is a smooth version of an ReLU but is not as trivial to get the derivative of.
-  enum class InternalActivator {Logit, Tanh, ReLU, Softplus, LReLU, Softsign};
+  enum class InternalActivator {Identity, Logit, Tanh, ReLU, Softplus, LReLU, Softsign};
   /// a number of activation functions can be generalized with hyperparameters, even on a per-channel level.
   // implementing this will require some interface changes, but it's not yet a priority in terms of making this library useful.
   // see https://arxiv.org/pdf/1710.05941.pdf for an exploration of various other activation functions
@@ -36,13 +36,29 @@ namespace ceptron {
     // there should possibly be some additional voodoo to ensure that ArrT is an Eigen::ArrayBase
     // note that that seemed to bite us when we tried
     // these need to be static (and therefore not const) in order to call them without an instance
-    template <typename ArrT> static ArrT activ(const ArrT& in) /*const*/;
-    template <typename ArrT> static ArrT activToD(const ArrT& act) /*const*/; // sig -> sig', not x -> sig'
+    template <typename ArrT> static inline ArrT activ(const ArrT& in);
+    template <typename ArrT> static inline ArrT activToD(const ArrT& act); // sig -> sig', not x -> sig'
     // another function like dactive_from_in would compute the derivative directly from the input,
     //  which might be necessary for the less nice activation choices
     // we could consider returning both the activated layer and it's derivative simultaneously
   };
 
+  // ---- identity function ----
+  // useful for least-squares regression
+  // not useful for internal activation functions
+
+  template <>
+  template <typename ArrT>
+  ArrT ActivFunc<InternalActivator::Identity>::activ(const ArrT& in) {
+    return in;
+  }
+
+  template <>
+  template <typename ArrT>
+  ArrT ActivFunc<InternalActivator::Identity>::activToD(const ArrT& act) {
+    // this may not be properly optimized for static-size ArrT
+    return ArrT::Constant(act.rows(), act.cols(), 1.0);
+  }
 
   // ---- logit ----
 
@@ -51,7 +67,7 @@ namespace ceptron {
   template <typename ArrT>
   // might need to take an Eigen::Ref since we're passing it in segments?
   /// something like ArrT -> Eigen::ArrayBase<ArrT> ? but that did lead to some very strange results at one point so maybe not
-  ArrT ActivFunc<InternalActivator::Logit>::activ(const ArrT& in) /*const*/ {
+  ArrT ActivFunc<InternalActivator::Logit>::activ(const ArrT& in) {
     // // something like the following assertion would be good to restrict to Array types, but I'm not getting it to work atm
     // static_assert( std::is_base_of<Eigen::ArrayBase, ArrT>::value,
     // 		 "activation function must take an Eigen::Array type" );
@@ -60,7 +76,7 @@ namespace ceptron {
 
   template <>
   template <typename ArrT>
-  ArrT ActivFunc<InternalActivator::Logit>::activToD(const ArrT& act) /*const*/ {
+  ArrT ActivFunc<InternalActivator::Logit>::activToD(const ArrT& act) {
     return act*(1.0-act);
   }
 
@@ -68,7 +84,7 @@ namespace ceptron {
 
   template <>
   template <typename ArrT>
-  ArrT ActivFunc<InternalActivator::Tanh>::activ(const ArrT& in) /*const*/ {
+  ArrT ActivFunc<InternalActivator::Tanh>::activ(const ArrT& in) {
 #if EIGEN_VERSION_AT_LEAST(3,3,0)
     return tanh(in);
 #else
@@ -80,7 +96,7 @@ namespace ceptron {
 
   template <>
   template <typename ArrT>
-  ArrT ActivFunc<InternalActivator::Tanh>::activToD(const ArrT& act) /*const*/ {
+  ArrT ActivFunc<InternalActivator::Tanh>::activToD(const ArrT& act) {
     return 1.0-act.square();
   }
 
@@ -88,14 +104,14 @@ namespace ceptron {
   // a popular choice but nodes often die out (this may actually help convergence)
   template <>
   template <typename ArrT>
-  ArrT ActivFunc<InternalActivator::ReLU>::activ(const ArrT& in) /*const*/ {
+  ArrT ActivFunc<InternalActivator::ReLU>::activ(const ArrT& in) {
     // the methods evaluating the size of in shouldn't be called when using static-sized inputs -- they're a redundant part of the interface for convenience
     return (in >= 0).select(in, ArrT::Zero(in.cols(), in.rows()));
   }
 
   template <>
   template <typename ArrT>
-  ArrT ActivFunc<InternalActivator::ReLU>::activToD(const ArrT& act) /*const*/ {
+  ArrT ActivFunc<InternalActivator::ReLU>::activToD(const ArrT& act) {
     // maybe return 0.5 at zero exactly to give nets that are zero-initialized some gradient
     // somehow nested selects is screwing up the result??
     // return (act > 0).select(ArrT::Ones(),
@@ -114,13 +130,13 @@ namespace ceptron {
 
   template <>
   template <typename ArrT>
-  ArrT ActivFunc<InternalActivator::Softplus>::activ(const ArrT& in) /*const*/ {
+  ArrT ActivFunc<InternalActivator::Softplus>::activ(const ArrT& in) {
     return log(1.0 + exp(in));
   }
 
   template <>
   template <typename ArrT>
-  ArrT ActivFunc<InternalActivator::Softplus>::activToD(const ArrT& act) /*const*/ {
+  ArrT ActivFunc<InternalActivator::Softplus>::activToD(const ArrT& act) {
     return 1.0 - exp(-act);
   }
 
@@ -130,14 +146,14 @@ namespace ceptron {
 
   template <>
   template <typename ArrT>
-  ArrT ActivFunc<InternalActivator::LReLU>::activ(const ArrT& in) /*const*/ {
+  ArrT ActivFunc<InternalActivator::LReLU>::activ(const ArrT& in) {
     constexpr double alpha = 1.0/128.0;
     return (in >= 0).select(in, alpha*in);
   }
 
   template <>
   template <typename ArrT>
-  ArrT ActivFunc<InternalActivator::LReLU>::activToD(const ArrT& act) /*const*/ {
+  ArrT ActivFunc<InternalActivator::LReLU>::activToD(const ArrT& act) {
     constexpr double alpha = 1.0/128.0;
     // maybe return 0.5 at zero exactly to give nets that are zero-initialized some gradient
     return (act > 0).select(ArrT::Ones(act.cols(), act.rows()),

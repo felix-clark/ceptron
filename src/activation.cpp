@@ -7,6 +7,8 @@ namespace {
 
 ceptron::BatchArrayX ceptron::activ(InternalActivator act, const Eigen::Ref<const BatchArrayX>& in) {
   switch (act) {
+  case InternalActivator::Identity:
+    return ActivFunc<InternalActivator::Identity>::activ(in);
   case InternalActivator::Logit:
     return ActivFunc<InternalActivator::Logit>::activ(in);
   case InternalActivator::Tanh:
@@ -26,6 +28,8 @@ ceptron::BatchArrayX ceptron::activ(InternalActivator act, const Eigen::Ref<cons
 
 ceptron::BatchArrayX ceptron::activToD(InternalActivator act, const Eigen::Ref<const BatchArrayX>& x) {
   switch (act) {
+  case InternalActivator::Identity:
+    return ActivFunc<InternalActivator::Identity>::activToD(x);
   case InternalActivator::Logit:
     return ActivFunc<InternalActivator::Logit>::activToD(x);
   case InternalActivator::Tanh:
