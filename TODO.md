@@ -8,6 +8,8 @@ Half-precision floats could even be considered, but this might take some extra w
 
 ## implement arbitrary-size compile-time NNs using template recursion
 
+and work to make error messages clear for incorrect template parameters
+
 ## implement dropout regularization
 
 the tricky part here is figuring out when the masks can be re-rolled

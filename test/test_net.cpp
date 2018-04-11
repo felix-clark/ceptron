@@ -175,7 +175,11 @@ int main(int, char**) {
   } // static single-layer net test
 
   { // general-size static net
-    using Net = FfnStatic<4,4>;// this template signature will need to change
+    using Hidden = FfnLayerDef<Nh, Act>;
+    using Output = FfnOutputLayerDef<Nout, Reg>;
+    // using Netfail = FfnStatic<Nin,Hidden,Hidden>;
+    // Netfail testfail; // this should fail: it does but the error message is not clear
+    using Net = FfnStatic<Nin,Hidden,Output>;
     Net net;
   } // general-size static net
 
