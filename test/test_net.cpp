@@ -1,6 +1,7 @@
 #include "global.hpp"
 #include "slfn.hpp"
 #include "ffn_dyn.hpp"
+#include "ffn.hpp"
 #include "ionet.hpp"
 #include "log.hpp"
 #include <Eigen/Core>
@@ -132,7 +133,7 @@ int main(int, char**) {
   // to speed up compilation we can disable the static tests while we develop the dynamic case
 #ifndef NOSTATIC
 
-  { // static net test
+  { // static single-layer net test
     // defines the architecture of our test NN
     using Net = SlfnStatic<Nin, Nout, Nh>;
     Net testNet;
@@ -171,7 +172,12 @@ int main(int, char**) {
       auto diff = pars - parsCopy;
       LOG_WARNING("difference:\n" << diff.transpose().format(my_fmt));
     }
-  } // static net test
+  } // static single-layer net test
+
+  { // general-size static net
+    using Net = FfnStatic<4,4>;// this template signature will need to change
+    Net net;
+  } // general-size static net
 
 #else
   LOG_INFO("skipping static nets.");
