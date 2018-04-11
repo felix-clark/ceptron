@@ -175,11 +175,12 @@ int main(int, char**) {
   } // static single-layer net test
 
   { // general-size static net
-    using Hidden = FfnLayerDef<Nh, Act>;
-    using Output = FfnOutputLayerDef<Nout, Reg>;
-    // using Netfail = FfnStatic<Nin,Hidden,Hidden>;
-    // Netfail testfail; // this should fail: it does but the error message is not clear
-    using Net = FfnStatic<Nin,Hidden,Output>;
+    using HiddenLayer_t = FfnLayerDef<Nh, Act>;
+    using OutputLayer_t = FfnOutputLayerDef<Nout, Reg>;
+    // using Netfail = FfnStatic<Nin,HiddenLayer_t,HiddenLayer_t>;
+    // this should fail: it does but the error message is not clear enough.
+    // Netfail testfail;
+    using Net = FfnStatic<Nin,HiddenLayer_t,OutputLayer_t>;
     Net net;
   } // general-size static net
 
