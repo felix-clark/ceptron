@@ -51,12 +51,12 @@ namespace ceptron {
     auto getSecondSynapses(const ArrayX& net) const
     {return Map< const Mat<M, P+1> >(net.template segment<size_w2_>(size_w1_).data());};
 
-    void setL2Reg(double lambda) {l2_lambda_=lambda;}
-    double getL2Reg() const {return l2_lambda_;}
+    void setL2Reg(scalar lambda) {l2_lambda_=lambda;}
+    scalar getL2Reg() const {return l2_lambda_;}
 
   private:
     // l2 regularization parameter
-    double l2_lambda_=0.;
+    scalar l2_lambda_=0.;
     
   }; // class SlfnStatic
 
@@ -121,8 +121,8 @@ namespace ceptron {
     BatchVec<M> x2 = Regressor<Net::RegType>::template outputGate< BatchArray<M> >(a2.array()).matrix();
     assert( x2.cols() == batchSize );
 
-    double costFuncVal = Regressor<Net::RegType>::template costFuncVal< BatchArray<M> >(x2.array(), y.array());
-    double costFuncReg = w1.template rightCols<N>().array().square().sum()
+    scalar costFuncVal = Regressor<Net::RegType>::template costFuncVal< BatchArray<M> >(x2.array(), y.array());
+    scalar costFuncReg = w1.template rightCols<N>().array().square().sum()
       + w2.template rightCols<P>().array().square().sum(); // lambda*sum (weights^2), but we don't include the bias terms
     costFuncVal += net.getL2Reg() * costFuncReg;
   
@@ -163,7 +163,7 @@ namespace ceptron {
   // we need to be careful w/ this function because it's similar to the version w/ gradient, but stops sooner.
   // a compositional style of this function inside the one that includes the gradient doesn't work trivially since the backprop needs some intermediate results from this calculation
   template <typename Net>
-  double costFunc(const Net& net, const ArrayX& netvals, const BatchVec<Net::inputs>& x0, const BatchVec<Net::outputs>& y) {
+  scalar costFunc(const Net& net, const ArrayX& netvals, const BatchVec<Net::inputs>& x0, const BatchVec<Net::outputs>& y) {
 
     constexpr size_t N = Net::inputs;
     constexpr size_t M = Net::outputs;
@@ -184,8 +184,8 @@ namespace ceptron {
     BatchVec<M> x2 = Regressor<Net::RegType>::template outputGate< BatchArray<M> >(a2.array()).matrix();
 
     // we might return f and gradient together... or maybe we just cache them
-    double costFuncVal = Regressor<Net::RegType>::template costFuncVal< BatchArray<M> >(x2.array(), y.array());
-    double costFuncReg = w1.template rightCols<N>().array().square().sum()
+    scalar costFuncVal = Regressor<Net::RegType>::template costFuncVal< BatchArray<M> >(x2.array(), y.array());
+    scalar costFuncReg = w1.template rightCols<N>().array().square().sum()
       + w2.template rightCols<P>().array().square().sum(); // lambda*sum (weights^2), but we don't include the bias terms
     costFuncVal += net.getL2Reg() * costFuncReg;
     // normalize after regularization term, which seems like a strange convention

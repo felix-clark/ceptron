@@ -64,6 +64,11 @@ namespace ceptron {
 
     // static interface class for Layer classes
     template <typename Derived> struct LayerBase {
+    private:
+      // we only have one base class so we can just define this helper function in-class instead of making an additional helper class.
+      // will we need a const version?
+      // Derived& derived() const {return *static_cast<Derived*>(this);}
+      Derived& derived() const {return static_cast<Derived>(*this);}
     protected:
       // it will be convenient to export these into derived classes,
       //  but they will need to be "used" explicitly
@@ -71,8 +76,12 @@ namespace ceptron {
       static constexpr size_t Nout = LayerTraits<Derived>::Nout;
       static constexpr size_t Nfinal = LayerTraits<Derived>::Nfinal;
     public:
-      double costFuncRecurse(const Eigen::Ref<const ArrayX>& net, const BatchVec<Nin>& xin, const BatchVec<Nfinal>& yin) const {
-	return static_cast< Derived* >(this)->costFuncRecurse(net, xin, yin);
+      scalar costFuncRecurse(const Eigen::Ref<const ArrayX>& net, const BatchVec<Nin>& xin, const BatchVec<Nfinal>& yin) const {
+	// return static_cast< Derived* >(this)->costFuncRecurse(net, xin, yin);
+	return derived().costFuncRecurse(net, xin, yin);
+      }
+      Vec<Nfinal> predictRecurse(const Eigen::Ref<const ArrayX>& net, const Vec<Nin>& xin) const {
+	return derived()->predictRecurse(net, xin);
       }
     }; // class LayerBase
   
@@ -93,7 +102,7 @@ namespace ceptron {
       using base_t::Nout;
       using base_t::Nfinal;
       // LayerRec() = default;
-      double costFuncRecurse(const Eigen::Ref<const ArrayX>& net, const BatchVec<Nin>& xin, const BatchVec<Nfinal>& yin) const;
+      scalar costFuncRecurse(const Eigen::Ref<const ArrayX>& net, const BatchVec<Nin>& xin, const BatchVec<Nfinal>& yin) const;
     private:
       // a private constructor may be appropriate if we will only instantiate this layer class from within the public FfnStatic class
       
@@ -119,7 +128,7 @@ namespace ceptron {
       using base_t::Nout;
       using base_t::Nfinal;
     public:
-      double costFuncRecurse(const Eigen::Ref<const ArrayX>& net, const BatchVec<Nin>& xin, const BatchVec<Nfinal>& yin) const;
+      scalar costFuncRecurse(const Eigen::Ref<const ArrayX>& net, const BatchVec<Nin>& xin, const BatchVec<Nfinal>& yin) const;
     private:
     
       // there is no next layer. we'll define functions based on the regression type.

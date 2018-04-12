@@ -14,17 +14,17 @@ int FfnDyn::numInputs() const {
   return first_layer_->getNumInputs();
 }
 
-void FfnDyn::setL2Reg(double l) {
+void FfnDyn::setL2Reg(scalar l) {
   first_layer_->setL2RegRecurse(l);
 }
 
 
-// double FfnDyn::costFunc(const Eigen::Ref<const ArrayX>& netvals, const BatchArrayX& xin, const BatchArrayX& yin) const {
+// scalar FfnDyn::costFunc(const Eigen::Ref<const ArrayX>& netvals, const BatchArrayX& xin, const BatchArrayX& yin) const {
 // a normal reference should be enough -- we don't need to pass in blocks of matrices at this time
-double FfnDyn::costFunc(const ArrayX& netvals, const BatchVecX& xin, const BatchVecX& yin) const {
+scalar FfnDyn::costFunc(const ArrayX& netvals, const BatchVecX& xin, const BatchVecX& yin) const {
   assert( netvals.size() == num_weights() );
   const int batchSize = xin.cols();
-  double totalCost = first_layer_->costFuncRecurse(netvals, xin, yin);
+  scalar totalCost = first_layer_->costFuncRecurse(netvals, xin, yin);
   return totalCost / batchSize;
 }
 
@@ -68,7 +68,7 @@ size_t FfnDyn::Layer::getNumEndOutputs() const {
   return is_output_ ? outputs_ : next_layer_->getNumEndOutputs();
 }
 
-void FfnDyn::Layer::setL2RegRecurse(double l) {
+void FfnDyn::Layer::setL2RegRecurse(scalar l) {
   l2_lambda_ = l;
   if (!is_output_) next_layer_->setL2RegRecurse(l);
 }
@@ -95,7 +95,7 @@ ArrayX FfnDyn::Layer::randParsRecurse(int pars_left) const {
   return combPars;
 }
 
-double FfnDyn::Layer::costFuncRecurse(const Eigen::Ref<const ArrayX>& netvals, const BatchVecX& xin, const BatchVecX& yin) const { // , regularization etc.)
+scalar FfnDyn::Layer::costFuncRecurse(const Eigen::Ref<const ArrayX>& netvals, const BatchVecX& xin, const BatchVecX& yin) const { // , regularization etc.)
   // const auto batchsize = xin.cols();
   // could assert that xin.cols() == yin.cols(). maybe just in slower gradient version
   VecX bias = Eigen::Map<const VecX>(netvals.segment(0,outputs_).data(), outputs_, 1);
@@ -105,7 +105,7 @@ double FfnDyn::Layer::costFuncRecurse(const Eigen::Ref<const ArrayX>& netvals, c
   BatchVecX a1 = weights*xin.matrix();// + bias;
   a1.colwise() += bias;
 
-  double regTerm = l2_lambda_ * weights.array().square().sum();
+  scalar regTerm = l2_lambda_ * weights.array().square().sum();
   BatchVecX x1 = activation_func_(a1);
   if (is_output_) {
     assert( insize == getNumWeights() );

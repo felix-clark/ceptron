@@ -20,7 +20,7 @@ BatchArrayX ceptron::outputGate(RegressionType reg, const Eigen::Ref<const Batch
 
 
 
-double ceptron::costFuncVal(RegressionType reg,
+ceptron::scalar ceptron::costFuncVal(RegressionType reg,
 			    const Eigen::Ref<const BatchArrayX>& xout,
 			    const Eigen::Ref<const BatchArrayX>& yin) {
   switch (reg) {

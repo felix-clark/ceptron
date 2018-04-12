@@ -10,21 +10,21 @@ namespace ceptron {
   // runtime versions
   ceptron::BatchArrayX outputGate(RegressionType, const Eigen::Ref<const ceptron::BatchArrayX>& aout);
   // ceptron::ArrayX outputGate(RegressionType, const Eigen::Ref<const ceptron::ArrayX>& aout);
-  double costFuncVal(RegressionType, const Eigen::Ref<const ceptron::BatchArrayX>& xout, const Eigen::Ref<const ceptron::BatchArrayX>& yin);
+  scalar costFuncVal(RegressionType, const Eigen::Ref<const ceptron::BatchArrayX>& xout, const Eigen::Ref<const ceptron::BatchArrayX>& yin);
 
   template <RegressionType Reg>
   class Regressor
   {
   public:
     template <typename ArrT> static ArrT outputGate(const ArrT& aout);
-    template <typename ArrT> static double costFuncVal(const ArrT& xout, const ArrT& yin); // compares y from data to output x of NN
+    template <typename ArrT> static scalar costFuncVal(const ArrT& xout, const ArrT& yin); // compares y from data to output x of NN
     // we don't have to provide the derivative, it cancels out nicely for both regression types
     //  this statement is possibly somewhat general but it does depend on both the cost function and the output function of x
   };
 
   template <> // class template specialization
   template <typename ArrT>
-  double Regressor<RegressionType::Categorical>::costFuncVal(const ArrT& xout, const ArrT& yin) {
+  scalar Regressor<RegressionType::Categorical>::costFuncVal(const ArrT& xout, const ArrT& yin) {
 #if EIGEN_VERSION_AT_LEAST(3,3,0)
     return  - (yin*log(xout)).sum() - ((1.0-yin.colwise().sum())*log1p(-xout.colwise().sum())).sum();
 #else
@@ -35,7 +35,7 @@ namespace ceptron {
 
   template <>
   template <typename ArrT>
-  double Regressor<RegressionType::LeastSquares>::costFuncVal(const ArrT& xout, const ArrT& yin) {
+  scalar Regressor<RegressionType::LeastSquares>::costFuncVal(const ArrT& xout, const ArrT& yin) {
     // the convention in ML is to divide by factor of 2.
     // also makes backprop have same factors.
     // max likelihood of gaussian w/ variance 1
@@ -45,7 +45,7 @@ namespace ceptron {
 
   template <>
   template <typename ArrT>
-  double Regressor<RegressionType::Poisson>::costFuncVal(const ArrT& xout, const ArrT& yin) {
+  scalar Regressor<RegressionType::Poisson>::costFuncVal(const ArrT& xout, const ArrT& yin) {
     // the additional log could be avoided if we passed in the value before applying the output gate (aout)
     return  (xout - yin*log(xout)).sum();
   }

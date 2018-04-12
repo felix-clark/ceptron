@@ -5,11 +5,11 @@
 #include <Eigen/Dense>
 
 namespace ceptron {
-  using func_t = std::function<double(ArrayX)>;
+  using func_t = std::function<scalar(ArrayX)>;
   using grad_t = std::function<ArrayX(ArrayX)>;
 
   // we should also implement a golden section search
-  double line_search( std::function<double(double)>, double, double, size_t maxiter = 16, double tol=1e-6 );
+  scalar line_search( std::function<scalar(scalar)>, scalar, scalar, size_t maxiter = 16, scalar tol=1e-6 );
 
   // in the future some may report a Hessian approximation
   // this should be a separate interface
@@ -39,9 +39,9 @@ namespace ceptron {
     ~GradientDescent() = default;
     virtual ArrayX getDeltaPar( func_t, grad_t, ArrayX ) override;
     virtual void resetCache() override {}; // simple gradient descent uses no cache
-    void setLearnRate(double lr) {learn_rate_ = lr;}
+    void setLearnRate(scalar lr) {learn_rate_ = lr;}
   private:
-    double learn_rate_ = 0.01;
+    scalar learn_rate_ = 0.01;
   };
 
   // ---- adding momentum term to naive gradient descent to help with "canyons" ----
@@ -54,12 +54,12 @@ namespace ceptron {
     ~GradientDescentWithMomentum() = default;
     virtual ArrayX getDeltaPar( func_t, grad_t, ArrayX ) override;
     virtual void resetCache() override {momentum_term_.setZero();}
-    void setLearnRate(double lr) {learn_rate_ = lr;}
-    void setMomentumScale(double ms) {momentum_scale_ = ms;}
+    void setLearnRate(scalar lr) {learn_rate_ = lr;}
+    void setMomentumScale(scalar ms) {momentum_scale_ = ms;}
   private:
     ArrayX momentum_term_;// = ArrayX::Zero();
-    double learn_rate_ = 0.005;
-    double momentum_scale_ = 0.875;
+    scalar learn_rate_ = 0.005;
+    scalar momentum_scale_ = 0.875;
   };
 
   // // ---- Nesterov's accelerated gradient ----
@@ -70,17 +70,17 @@ namespace ceptron {
   public:
     AcceleratedGradient(int npar)
       : momentum_term_(ArrayX::Zero(npar)) {};
-    // AcceleratedGradient(double learn_rate=0.01,
-    // 		      double momentum_scale=0.875);
+    // AcceleratedGradient(scalar learn_rate=0.01,
+    // 		      scalar momentum_scale=0.875);
     ~AcceleratedGradient() = default;
     virtual ArrayX getDeltaPar( func_t, grad_t, ArrayX ) override;
     virtual void resetCache() override {momentum_term_.setZero();}
-    void setLearnRate(double lr) {learn_rate_ = lr;}
-    void setMomentumScale(double ms) {momentum_scale_ = ms;}
+    void setLearnRate(scalar lr) {learn_rate_ = lr;}
+    void setMomentumScale(scalar ms) {momentum_scale_ = ms;}
   private:
     ArrayX momentum_term_;
-    double learn_rate_ = 0.005;
-    double momentum_scale_ = 0.875;
+    scalar learn_rate_ = 0.005;
+    scalar momentum_scale_ = 0.875;
   };
 
   // ---- ADADELTA has an adaptive, unitless learning rate ----
@@ -96,16 +96,16 @@ namespace ceptron {
     ~AdaDelta() = default;
     virtual ArrayX getDeltaPar( func_t, grad_t, ArrayX ) override;
     virtual void resetCache() override;
-    void setDecayScale(double ds) {decay_scale_ = ds;}
-    void setLearnRate(double lr) {learn_rate_ = lr;}
-    void setEpsilon(double ep) {ep_ = ep;}
+    void setDecayScale(scalar ds) {decay_scale_ = ds;}
+    void setLearnRate(scalar lr) {learn_rate_ = lr;}
+    void setEpsilon(scalar ep) {ep_ = ep;}
   private:
     ArrayX accum_grad_sq_;
     ArrayX accum_dpar_sq_;
     ArrayX last_delta_par_;
-    double decay_scale_ = 0.9375; // similar to window average of last 16 values. 0.875 for scale of 8 previous values
-    double learn_rate_ = 1.0; // a default value that can be adjusted down if necessary
-    double ep_ = 1e-6;
+    scalar decay_scale_ = 0.9375; // similar to window average of last 16 values. 0.875 for scale of 8 previous values
+    scalar learn_rate_ = 1.0; // a default value that can be adjusted down if necessary
+    scalar ep_ = 1e-6;
   };
 
 
@@ -122,7 +122,7 @@ namespace ceptron {
     virtual void resetCache() override;
   private:
     MatX hessian_approx_;
-    double learn_rate_ = 1.0;
+    scalar learn_rate_ = 1.0;
   };
 
 

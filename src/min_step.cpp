@@ -12,15 +12,15 @@ namespace ceptron {
 
   // will perform a 1D simplex minimum search to quickly find a step size
   // could possibly use instead a golden search on the interval (0,1)
-  double line_search( std::function<double(double)> f, double xa, double xb, size_t maxiter, double tol ) {
-    constexpr double alpha = 1.0;
-    constexpr double gamma = 2.0;
-    constexpr double rho = 0.5;
-    // constexpr double sigma = 0.5;
-    constexpr double sigma = 0.25; // if this is equal to rho then the 1D algorithm has some redundant checks
+  scalar line_search( std::function<scalar(scalar)> f, scalar xa, scalar xb, size_t maxiter, scalar tol ) {
+    constexpr scalar alpha = 1.0;
+    constexpr scalar gamma = 2.0;
+    constexpr scalar rho = 0.5;
+    // constexpr scalar sigma = 0.5;
+    constexpr scalar sigma = 0.25; // if this is equal to rho then the 1D algorithm has some redundant checks
 
-    double fa = f(xa);
-    double fb = f(xb);
+    scalar fa = f(xa);
+    scalar fb = f(xb);
 
     for (size_t i_iter=0; i_iter<maxiter; ++i_iter ) {
       // check condition for standard deviation of f values being small, either absolutely or relatively depending on how large f is
@@ -43,12 +43,12 @@ namespace ceptron {
 	LOG_WARNING("iteration number " << i_iter);
       }
       assert( !(fa > fb) ); // xa is now the best value
-      double xr = xa + alpha*(xa - xb); // reflected
-      double fr = f(xr);
+      scalar xr = xa + alpha*(xa - xb); // reflected
+      scalar fr = f(xr);
       if (fr < fa) {
 	// reflected point is best so far, replace worst point with the either it or this expanded point:
-	double xe = xa + gamma*(xr - xa); // = xa + gamma*alpha*(xa-xb)
-	double fe = f(xe);
+	scalar xe = xa + gamma*(xr - xa); // = xa + gamma*alpha*(xa-xb)
+	scalar fe = f(xe);
 	if (fe < fr) {
 	  xb = xe;
 	  fb = fe;
@@ -60,8 +60,8 @@ namespace ceptron {
       }
       assert( !(fr < fa) );
       // contracted point (which is just average)
-      double xc = xa + rho*(xb - xa);
-      double fc = f(xc);
+      scalar xc = xa + rho*(xb - xa);
+      scalar fc = f(xc);
       // assert( fc == fc );
       if (fc < fb) {
 	// replace worst point with contracted one
@@ -122,8 +122,8 @@ namespace ceptron {
     //   // this actually ends up slowing down easy convergences so perhaps it's not the best approach
     //   // it prevents blowups but seems to negate most of the advantages of AdaDelta in the first place
     //   // practically, it might make sense to run a few iterations w/ line search then turn it off.
-    //   auto f_line = [&](double x){return f(pars + x*dp.array());};
-    //   double alpha_step = line_search( f_line, 0.7071067, 1.0 );
+    //   auto f_line = [&](scalar x){return f(pars + x*dp.array());};
+    //   scalar alpha_step = line_search( f_line, 0.7071067, 1.0 );
 
     //   dp *= alpha_step;
     //   grad *= alpha_step;
@@ -160,8 +160,8 @@ namespace ceptron {
 
     // we might only want to do this line search if we see an increasing value f(p+dp) > f(p)
     // , in which case a golden section search might be more efficient
-    auto f_line = [&](double x){return f(par + x*deltap.array());};
-    double alpha_step = line_search( f_line, 0.7071067, 1.0 );  
+    auto f_line = [&](scalar x){return f(par + x*deltap.array());};
+    scalar alpha_step = line_search( f_line, 0.7071067, 1.0 );  
 
     deltap *= alpha_step;
   

@@ -147,14 +147,14 @@ namespace ceptron {
   template <>
   template <typename ArrT>
   ArrT ActivFunc<InternalActivator::LReLU>::activ(const ArrT& in) {
-    constexpr double alpha = 1.0/128.0;
+    constexpr scalar alpha = 1.0/128.0;
     return (in >= 0).select(in, alpha*in);
   }
 
   template <>
   template <typename ArrT>
   ArrT ActivFunc<InternalActivator::LReLU>::activToD(const ArrT& act) {
-    constexpr double alpha = 1.0/128.0;
+    constexpr scalar alpha = 1.0/128.0;
     // maybe return 0.5 at zero exactly to give nets that are zero-initialized some gradient
     return (act > 0).select(ArrT::Ones(act.cols(), act.rows()),
 			    alpha*ArrT::Ones(act.cols(), act.rows()));

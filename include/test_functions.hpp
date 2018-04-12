@@ -14,7 +14,7 @@ namespace ceptron {
   namespace mintest {
     // // an easy case that should converge to the origin
     template <size_t N>
-    double sphere( const Array<N>& pars )
+    scalar sphere( const Array<N>& pars )
     {
       return pars.square().sum();
     }
@@ -26,21 +26,21 @@ namespace ceptron {
     }
 
     template <size_t N>
-    double ellipse( const Array<N>& pars, double scale=16.0 )
+    scalar ellipse( const Array<N>& pars, scalar scale=16.0 )
     {
       Array<N> coef = Array<N>::LinSpaced(1.0, scale*pars.size());
       return (coef*pars.square()).sum();
     }
 
     template <size_t N>
-    Array<N> grad_ellipse( const Array<N>& pars, double scale=16.0 )
+    Array<N> grad_ellipse( const Array<N>& pars, scalar scale=16.0 )
     {
       Array<N> coef = Array<N>::LinSpaced(1.0, scale*N);
       return 2.0*coef*pars;
     }
 
     template <size_t N>
-    double rosenbrock( const Array<N>& pars, double scale=100.0 )
+    scalar rosenbrock( const Array<N>& pars, scalar scale=100.0 )
     {
       static_assert( N > 1, "rosenbrock function must have multiple parameters" );
       Array<N-1> first = pars.template head<N-1>();
@@ -52,7 +52,7 @@ namespace ceptron {
 
     // // should converge to all parameters having value 1.0
     template <size_t N>
-    Array<N> grad_rosenbrock( const Array<N>& pars, double scale=100.0 )
+    Array<N> grad_rosenbrock( const Array<N>& pars, scalar scale=100.0 )
     {
       static_assert( N > 1, "rosenbrock function must have multiple parameters" );
       Array<N> shift_forward = Array<N>::Zero();
@@ -72,14 +72,14 @@ namespace ceptron {
     // // global minimum at origin but has many local minima.
     // // probably too pathological for ML minimizers
     template <size_t N>
-    double rastrigin( const Array<N>& pars, double scale )
+    scalar rastrigin( const Array<N>& pars, scalar scale )
     {
       // size_t n = pars.size();
       return scale*N + (pars.square() - scale*cos(2*M_PI*pars)).sum();
     }
 
     template <size_t N>
-    Array<N> grad_rastrigin( const Array<N>& pars, double scale )
+    Array<N> grad_rastrigin( const Array<N>& pars, scalar scale )
     {
       return 2*pars + scale*2*M_PI*sin(2*M_PI*pars);
     }

@@ -23,7 +23,7 @@ namespace ceptron {
     int numOutputs() const;
 
     // set an l2 regularization parameter, which adds a sum-of-squares of weight terms (but not biases) to the cost function.
-    void setL2Reg(double lambda); // technically could be declared const, since only the layers will care
+    void setL2Reg(scalar lambda); // technically could be declared const, since only the layers will care
     
     // convenience function to return a parameter array with weights (but not biases) randomized,
     //  as a suggested initialization. numbers are scaled to have a variance that does not depend on number of inputs.
@@ -31,7 +31,7 @@ namespace ceptron {
     ArrayX randomWeights() const;
 
     // these methods are the workhorses of the NN, and are implemented recursively on the layers
-    double costFunc(const ArrayX& netvals, const BatchVecX& xin, const BatchVecX& yin) const;
+    scalar costFunc(const ArrayX& netvals, const BatchVecX& xin, const BatchVecX& yin) const;
     ArrayX costFuncGrad(const ArrayX& netvals, const BatchVecX& xin, const BatchVecX& yin) const;
     VecX prediction(const ArrayX& netvals, const VecX& xin) const;
   private:
@@ -52,11 +52,11 @@ namespace ceptron {
       template <typename ...Ts> Layer(InternalActivator act, RegressionType reg, size_t ins, size_t n1, size_t n2, Ts... sizes);
       virtual ~Layer() = default;
 
-      void setL2RegRecurse(double l);
+      void setL2RegRecurse(scalar l);
       
       ArrayX randParsRecurse(int) const;
       // recursive calls to retrieve cost function, gradient, prediction
-      double costFuncRecurse(const Eigen::Ref<const ArrayX>& net, const BatchVecX& xin, const BatchVecX& yin) const;
+      scalar costFuncRecurse(const Eigen::Ref<const ArrayX>& net, const BatchVecX& xin, const BatchVecX& yin) const;
       // returns the matrix needed for backprop
       // takes a non-const reference to fill the gradient with (hence "get" in the function name)
       MatX getCostFuncGradRecurse(const Eigen::Ref<const ArrayX>& net, const BatchVecX& xin, const BatchVecX& yin, Eigen::Ref<ArrayX> gradnet) const;
@@ -84,13 +84,13 @@ namespace ceptron {
       // is a pointer to the last layer useful for anything? seems we can get most everything recursively
 
       // l2 regularization parameter
-      double l2_lambda_=0.;
+      scalar l2_lambda_=0.;
       
       // TODO: dropout probability: probability that a node is zeroed out for a calculation.
       // when getting cost function and gradient at the same time we need to make the masks identical
       // this might play poorly w/ calculations that require multiple calculations of the objective function (contour tracing)
       // we need to scale the values of neurons by (1-p) when extracting predictions
-      // double dropout_p_=0.;
+      // scalar dropout_p_=0.;
     
     }; // class Layer
 

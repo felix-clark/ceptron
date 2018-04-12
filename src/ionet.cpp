@@ -26,7 +26,7 @@ void ceptron::toFile(const ceptron::ArrayX& net, const std::string& fname) {
 
     // hexfloat isn't implemented in g++4, but we could put it to use there.
 #ifdef NO_HEXFLOAT
-    fout << std::setprecision(17) << net(i) << '\n';
+    fout << std::setprecision(sizeof(ceptron::scalar)*9/4) << net(i) << '\n';
 #else
     fout << std::hexfloat << net(i) << '\n';
 #endif
@@ -42,7 +42,7 @@ ceptron::ArrayX ceptron::fromFile(const std::string& fname) {
     throw std::runtime_error("failed to open file");
   }
   std::string line;
-  std::vector<double> vals;
+  std::vector<ceptron::scalar> vals;
   while (std::getline(fin, line)) {
     // the fact that this one line doesn't work is actually either a bug in g++ or a flaw in the standards.
     // in >> std::hexfloat >> data(i);
@@ -55,7 +55,7 @@ ceptron::ArrayX ceptron::fromFile(const std::string& fname) {
 #else
     s << std::hexfloat << line;
 #endif
-    vals.push_back(std::strtod(s.str().data(), nullptr));
+    vals.push_back(std::strtold(s.str().data(), nullptr));
   }
     
   fin.close();
