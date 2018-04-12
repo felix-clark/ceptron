@@ -110,7 +110,7 @@ namespace ceptron {
 	Mat<size,inputs> weights = Eigen::Map<const Mat<size,inputs>>(net.segment<inputs*size>(size).data());
 	BatchVec<size> a1 = weights*xin;// + bias;
 	a1.colwise() += bias;	
-	BatchVec<size> x1 = activ(a1.array()).matrix();
+	BatchVec<size> x1 = L0_::template activ<BatchArray<size>>(a1.array()).matrix();
 	const Eigen::Ref<const ArrayX>& remNet = net.segment(size*(inputs+1), net.size()-size*(inputs+1));
 	return next_layer_.costFuncRecurse(remNet, x1, yin);
       }
@@ -145,14 +145,14 @@ namespace ceptron {
 	Mat<size,inputs> weights = Eigen::Map<const Mat<size,inputs>>(net.segment<inputs*size>(size).data());
 	BatchVec<size> a1 = weights*xin;// + bias;
 	a1.colwise() += bias;	
-	BatchVec<size> x1 = outputGate(a1.array()).matrix();
-	return costFuncVal(x1.array(), yin.array());
+	BatchVec<size> x1 = L0_::template outputGate< BatchArray<size> >(a1.array()).matrix();
+	return L0_::template costFuncVal<BatchArray<size>>(x1.array(), yin.array());
       }
     private:
     
-      // there is no next layer. we'll define functions based on the regression type.
-      using L0_::outputGate; // we'd need to inherit from L0 (which is an FfnOutputLayerDef)
-      using L0_::costFuncVal;
+      // // there is no next layer. we'll define functions based on the regression type.
+      // using L0_::outputGate; // we'd need to inherit from L0 (which is an FfnOutputLayerDef)
+      // using L0_::costFuncVal;
     }; // class LayerRec (output case)
 
     
