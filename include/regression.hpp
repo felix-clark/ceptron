@@ -56,9 +56,9 @@ namespace ceptron {
   ArrT Regressor<RegressionType::Categorical>::outputGate(const ArrT& aout) {
     using Eigen::exp;
     // eval() actually totally screws it up! temporary object? don't call eval inside a function! (except perhaps in specific cases)
-    ArrT expvals = exp(aout);
+    const ArrT expvals = exp(aout);
     // (1.0 + expvals.colwise().sum()) is a dynamic-range row vector w/ the normalization factor for each column
-    ArrT result = expvals.rowwise() / (1.0 + expvals.colwise().sum());
+    const ArrT result = expvals.rowwise() / (1.0 + expvals.colwise().sum());
     // traditionally, softmax does not have this extra 1.0 term, but we want to generalize cleanly from 1D case  
     return result;
   }
