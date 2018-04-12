@@ -3,26 +3,64 @@
 #include "test_functions.hpp"
 #include "log.hpp"
 #include <iostream>
+#include <limits>
 
 namespace {
   using namespace ceptron;
+  // a local formatting option block for convenience
+  const Eigen::IOFormat my_fmt(3, // first value is the precision
+			       0, ", ", "\n", "[", "]");
+  constexpr scalar scalar_ep = std::numeric_limits<ceptron::scalar>::epsilon();
+  constexpr scalar local_epsilon = std::sqrt(scalar_ep);
+  constexpr scalar default_tol = std::sqrt(scalar_ep);
+
 } // namespace
 
-void check_gradient(func_t f, grad_t g, ArrayX p, double ep=1e-6, double tol=1e-2) {
-  // TODO: borrow element-by-element version from test_net to beef this up
-  ArrayX evalgrad = g(p);
-  double gradmag = sqrt(evalgrad.square().sum());
-  ArrayX dir = (1.0+p.square()).sqrt()*evalgrad/gradmag; // vector along direction of greatest change
-  double dirmag = sqrt(dir.square().sum());
-  // we should actually check the numerical derivative element-by-element
-  double deltaf = (f(p+ep*dir) - f(p-ep*dir))/(2*ep*dirmag); // should be close to |gradf|
-  if ( fabs(deltaf) - (dir*evalgrad).sum()/dirmag > tol*fabs(deltaf + (dir*evalgrad).sum()/dirmag) ) {
-    LOG_ERROR("gradient check failed!");
-    LOG_ERROR("f(p) = " << f(p));
-    LOG_ERROR("numerical derivative = " << deltaf);
-    LOG_ERROR("analytic gradient magnitude = " << (dir*evalgrad).sum()/dirmag);
-    LOG_ERROR("difference = " << fabs(deltaf) - (dir*evalgrad).sum()/dirmag);
+void check_gradient(func_t f, grad_t g, ArrayX p, double ep=local_epsilon, double tol=default_tol) {
+  const int Npar = p.size();
+  // // TODO: borrow element-by-element version from test_net to beef this up
+  // ArrayX evalgrad = g(p);
+  // double gradmag = sqrt(evalgrad.square().sum());
+  // ArrayX dir = (1.0+p.square()).sqrt()*evalgrad/gradmag; // vector along direction of greatest change
+  // double dirmag = sqrt(dir.square().sum());
+  // // we should actually check the numerical derivative element-by-element
+  // double deltaf = (f(p+ep*dir) - f(p-ep*dir))/(2*ep*dirmag); // should be close to |gradf|
+  // if ( fabs(deltaf) - (dir*evalgrad).sum()/dirmag > tol*fabs(deltaf + (dir*evalgrad).sum()/dirmag) ) {
+  //   LOG_ERROR("gradient check failed!");
+  //   LOG_ERROR("f(p) = " << f(p));
+  //   LOG_ERROR("numerical derivative = " << deltaf);
+  //   LOG_ERROR("analytic gradient magnitude = " << (dir*evalgrad).sum()/dirmag);
+  //   LOG_ERROR("difference = " << fabs(deltaf) - (dir*evalgrad).sum()/dirmag);
+  // }
+
+  // ---- element-by-element
+  scalar fval = f(p);
+  ArrayX df(Npar);// maybe can do this assignment slickly with colwise() or rowwise() ?
+  for (int i_f=0; i_f<Npar; ++i_f) {
+    ArrayX dp = ArrayX::Zero(Npar);
+    scalar dpi = ep*sqrt(1.0 + p(i_f)*p(i_f));
+    dp(i_f) = dpi;
+    // scalar fplusi = net.costFunc(p+dp, xin, yin);
+    // scalar fminusi = net.costFunc(p-dp, xin, yin);
+    scalar fplusi = f(p+dp);
+    scalar fminusi = f(p-dp);
+    df(i_f) = (fplusi - fminusi)/(2*dpi);
   }
+  
+  LOG_TRACE("about to check with analytic gradient");
+  ArrayX gradval = g(p);
+  // now check this element-by element
+  scalar sqSumDiff = (df-gradval).square().sum();
+  if ( sqSumDiff > tol*tol*(1.0 + df.square().sum() + gradval.square().sum() )
+       || !df.isFinite().all()
+       || !gradval.isFinite().all()) {
+    LOG_WARNING("gradient check failed at tolerance level " << tol << " (" << sqrt(sqSumDiff) << ")");
+    LOG_WARNING("f(p) = " << fval);
+    LOG_WARNING("numerical derivative = " << df.transpose().format(my_fmt));
+    LOG_WARNING("analytic gradient = " << gradval.transpose().format(my_fmt));
+    LOG_WARNING("difference = " << (df - gradval).transpose().format(my_fmt));
+  }
+
 }
 
 struct min_result
@@ -35,7 +73,7 @@ struct min_result
 };
 
 min_result test_min_step( IMinStep& minstep, func_t f, grad_t g, ArrayX initpars,
-			  double abstol=1e-10, size_t maxsteps=64000 ) {
+			  double abstol=default_tol, size_t maxsteps=64000 ) {
   minstep.resetCache(); // need to make sure caches are reset!
   
   ArrayX pars = initpars;
@@ -110,7 +148,8 @@ void run_test_functions( IMinStep& minstep, Array<N> initpars ) {
 }
 
 int main( int, char** ) {
-
+  SET_LOG_LEVEL(debug);
+  
   // constexpr size_t ndim = 4;
   constexpr size_t ndim = 2;
   Array<ndim> initpars;
