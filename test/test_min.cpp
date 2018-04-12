@@ -11,8 +11,8 @@ namespace {
   const Eigen::IOFormat my_fmt(3, // first value is the precision
 			       0, ", ", "\n", "[", "]");
   constexpr scalar scalar_ep = std::numeric_limits<ceptron::scalar>::epsilon();
-  constexpr scalar local_epsilon = std::sqrt(scalar_ep);
-  constexpr scalar default_tol = std::sqrt(scalar_ep);
+  const scalar local_epsilon = std::sqrt(scalar_ep);
+  const scalar default_tol = std::sqrt(scalar_ep);
 
 } // namespace
 
