@@ -6,7 +6,7 @@
 #define NO_HEXFLOAT
 // we need a workaround with high-precision output
 #include <iomanip>
-#include <numeric_limits>
+#include <limits>
 #endif
 
 
