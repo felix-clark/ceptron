@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.5)
 project(ceptron)
 
 if(NOT CMAKE_BUILD_TYPE)
-  # set(CMAKE_BUILD_TYPE Release)
+#set(CMAKE_BUILD_TYPE Release)
   set(CMAKE_BUILD_TYPE Debug)
 endif()
 
@@ -15,30 +15,30 @@ set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/bin)
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 set(LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR})
 
-# find Eigen3 installation. it's header-only; no libraries necessary.
+#find Eigen3 installation.it's header-only; no libraries necessary.
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
-# we don't need to manually include the eigen include dir if we "link" it below
-# include_directories(${EIGEN3_INCLUDE_DIR})
+#we don't need to manually include the eigen include dir if we "link" it below
+#include_directories(${EIGEN3_INCLUDE_DIR })
 
-# we need the -pthread option
+#we need the - pthread option
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
-# make sure to install libboost-all-dev (not just libboost-dev)
-# we need this definition for the log, or it fails to link
+#make sure to install libboost - all - dev(not just libboost - dev)
+#we need this definition for the log, or it fails to link
 add_definitions(-DBOOST_LOG_DYN_LINK)
 find_package(Boost 1.58 COMPONENTS log)
 if (Boost_FOUND)
-  # we can work around not finding boost and just do a dumb global logging system
+#we can work around not finding boost and just do a dumb global logging system
   add_definitions(-DBOOST_AVAILABLE)
 endif()
 
-# add our include directory
+#add our include directory
 include_directories(include)
 
-# source files can be manually added:
-# set(SOURCES src/source0.cpp src/source1.cpp ...)
-# but wildcarding is easier:
+#source files can be manually added:
+#set(SOURCES src / source0.cpp src / source1.cpp...)
+#but wildcarding is easier:
 file(GLOB SOURCES src/*.cpp)
 # file(GLOB_RECURSE SOURCES src/*.cpp) # recursive, for when we want to organize a bit
 
