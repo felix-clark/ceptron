@@ -6,6 +6,7 @@
 #define NO_HEXFLOAT
 // we need a workaround with high-precision output
 #include <iomanip>
+#include <numeric_limits>
 #endif
 
 
@@ -27,7 +28,9 @@ void ceptron::toFile(const ceptron::ArrayX& net, const std::string& fname) {
     // hexfloat isn't implemented in g++4, but we could put it to use there.
 #ifdef NO_HEXFLOAT
     // for every 4 bytes of a floating point representation, there are typically 9 decimal digits of precision at a maximum
-    fout << std::setprecision(sizeof(ceptron::scalar)*9/4) << net(i) << '\n';
+    // constexpr size_t prec = sizeof(ceptron::scalar)*9/4;
+    constexpr size_t prec = std::numeric_limits<ceptron::scalar>::max_digits10;
+    fout << std::setprecision(prec) << net(i) << '\n';
 #else
     fout << std::hexfloat << net(i) << '\n';
 #endif
