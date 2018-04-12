@@ -110,12 +110,12 @@ scalar FfnDyn::Layer::costFuncRecurse(const Eigen::Ref<const ArrayX>& netvals, c
   if (is_output_) {
     assert( insize == getNumWeights() );
     // BatchVecX x1 = outputGate(reg_, a1); // would be nice to generalize outputGate and activ. member function at initialization?
-    return regTerm + costFuncVal(reg_, x1, yin); // we need to add regularization terms as well
+    return regTerm + costFuncVal(reg_, x1, yin);
   } else {
     assert( insize > getNumWeights() );
     // BatchArrayX x1 = activ(act_, a1.array());
-    const Eigen::Ref<const ArrayX> remNet = netvals.segment(num_weights_, insize-num_weights_); // remaining parameters to be passed on
-    return regTerm + next_layer_->costFuncRecurse( remNet, x1, yin ); // add l2 regularization terms for weight matrix
+    const Eigen::Ref<const ArrayX>& remNet = netvals.segment(num_weights_, insize-num_weights_); // remaining parameters to be passed on
+    return regTerm + next_layer_->costFuncRecurse( remNet, x1, yin );
   }
 }
 

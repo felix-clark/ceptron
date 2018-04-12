@@ -50,16 +50,17 @@ namespace ceptron {
     //  since the base case needs access to these traits but they aren't yet defined when the derived classes are defined
     template <typename Derived> struct LayerTraits;
     template <size_t N_, typename L1_> struct LayerTraits < LayerRec<N_,L1_> > {
-      static constexpr size_t Nin = N_;
-      static constexpr size_t Nout = L1_::size;
-      static constexpr size_t Nfinal = Nout; // this specialization is for the output layer
+      static constexpr size_t inputs = N_; // number of incoming values
+      static constexpr size_t size = L1_::size; // number of values in this layer
+      // this specialization is for the output layer
+      static constexpr size_t outputs = size;
     };
     template <size_t N_, typename L1_, typename L2_, typename... Rest_> struct LayerTraits < LayerRec<N_,L1_,L2_,Rest_...> > {
-      static constexpr size_t Nin = N_;
-      static constexpr size_t Nout = L1_::size;
-      using next_layer_t = LayerRec<Nout, L2_, Rest_...>;
-      // static constexpr size_t Nfinal = LayerTraits< typename LayerRec<N_,L1_,L2_,Rest_...>::next_layer_t >::Nfinal;
-      static constexpr size_t Nfinal = LayerTraits< next_layer_t >::Nfinal;
+      static constexpr size_t inputs = N_;
+      static constexpr size_t size = L1_::size;
+      using next_layer_t = LayerRec<size, L2_, Rest_...>;
+      // static constexpr size_t outputs = LayerTraits< typename LayerRec<N_,L1_,L2_,Rest_...>::next_layer_t >::outputs;
+      static constexpr size_t outputs = LayerTraits< next_layer_t >::outputs;
     };
 
     // static interface class for Layer classes
@@ -72,15 +73,15 @@ namespace ceptron {
     protected:
       // it will be convenient to export these into derived classes,
       //  but they will need to be "used" explicitly
-      static constexpr size_t Nin = LayerTraits<Derived>::Nin;
-      static constexpr size_t Nout = LayerTraits<Derived>::Nout;
-      static constexpr size_t Nfinal = LayerTraits<Derived>::Nfinal;
+      static constexpr size_t inputs = LayerTraits<Derived>::inputs;
+      static constexpr size_t size = LayerTraits<Derived>::size;
+      static constexpr size_t outputs = LayerTraits<Derived>::outputs;
     public:
-      scalar costFuncRecurse(const Eigen::Ref<const ArrayX>& net, const BatchVec<Nin>& xin, const BatchVec<Nfinal>& yin) const {
+      scalar costFuncRecurse(const Eigen::Ref<const ArrayX>& net, const BatchVec<inputs>& xin, const BatchVec<outputs>& yin) const {
 	// return static_cast< Derived* >(this)->costFuncRecurse(net, xin, yin);
 	return derived().costFuncRecurse(net, xin, yin);
       }
-      Vec<Nfinal> predictRecurse(const Eigen::Ref<const ArrayX>& net, const Vec<Nin>& xin) const {
+      Vec<outputs> predictRecurse(const Eigen::Ref<const ArrayX>& net, const Vec<inputs>& xin) const {
 	return derived()->predictRecurse(net, xin);
       }
     }; // class LayerBase
@@ -98,18 +99,28 @@ namespace ceptron {
       using traits_t = LayerTraits<this_t>;
       using base_t = LayerBase<this_t>;
     public:
-      using base_t::Nin;
-      using base_t::Nout;
-      using base_t::Nfinal;
+      using base_t::inputs;
+      using base_t::size;
+      using base_t::outputs;
       // LayerRec() = default;
-      scalar costFuncRecurse(const Eigen::Ref<const ArrayX>& net, const BatchVec<Nin>& xin, const BatchVec<Nfinal>& yin) const;
+      // unfortunately for now we'll define member functions inside the template definition, since it's quite difficult to figure out the signature otherwise
+      // they should probably be made non-member classes.
+      scalar costFuncRecurse(const Eigen::Ref<const ArrayX>& net, const BatchVec<inputs>& xin, const BatchVec<outputs>& yin) const {
+	Vec<size> bias = Eigen::Map<const Vec<size>>(net.segment<size>(0).data());
+	Mat<size,inputs> weights = Eigen::Map<const Mat<size,inputs>>(net.segment<inputs*size>(size).data());
+	BatchVec<size> a1 = weights*xin;// + bias;
+	a1.colwise() += bias;	
+	BatchVec<size> x1 = activ(a1.array()).matrix();
+	const Eigen::Ref<const ArrayX>& remNet = net.segment(size*(inputs+1), net.size()-size*(inputs+1));
+	return next_layer_.costFuncRecurse(remNet, x1, yin);
+      }
     private:
       // a private constructor may be appropriate if we will only instantiate this layer class from within the public FfnStatic class
       
       using L0_::activ;
       using L0_::activToD;
 
-      using next_layer_t = LayerRec<Nout, L1_, Rest_...>;
+      using next_layer_t = LayerRec<size, L1_, Rest_...>;
       next_layer_t next_layer_;
     
     }; // class LayerRec (internal case)
@@ -124,11 +135,19 @@ namespace ceptron {
       using traits_t = LayerTraits<this_t>;
       using base_t = LayerBase<this_t>;
       // these traits may or may not need to be exposed for member function definitions. probably yes if we want to define member functions below (i.e. outside of the FfnStatic class definition).
-      using base_t::Nin; // could also get from traits_t::Nin, though not with "using" since this doesn't inherit
-      using base_t::Nout;
-      using base_t::Nfinal;
+      using base_t::inputs; // could also get from traits_t::inputs, though not with "using" since this doesn't inherit
+      using base_t::size; // we should choose only one of these to use
+      using base_t::outputs;
     public:
-      scalar costFuncRecurse(const Eigen::Ref<const ArrayX>& net, const BatchVec<Nin>& xin, const BatchVec<Nfinal>& yin) const;
+      // it's not optimal, but the template signatures make this difficult to define below
+      scalar costFuncRecurse(const Eigen::Ref<const ArrayX>& net, const BatchVec<inputs>& xin, const BatchVec<outputs>& yin) const {
+	Vec<size> bias = Eigen::Map<const Vec<size>>(net.segment<size>(0).data());
+	Mat<size,inputs> weights = Eigen::Map<const Mat<size,inputs>>(net.segment<inputs*size>(size).data());
+	BatchVec<size> a1 = weights*xin;// + bias;
+	a1.colwise() += bias;	
+	BatchVec<size> x1 = outputGate(a1.array()).matrix();
+	return costFuncVal(x1.array(), yin.array());
+      }
     private:
     
       // there is no next layer. we'll define functions based on the regression type.
@@ -138,9 +157,25 @@ namespace ceptron {
 
     
     LayerRec<N, Layers...> first_layer_;// clang requires this member to be declared after the definitions. g++ just segfaults w/ the CRTP.
-    
+
+    // definitions of FfnStatic
+  private:
+    static constexpr size_t outputs = decltype(first_layer_)::outputs;
+  public:
+    scalar costFunc(const ArrayX& net, const BatchVec<N>& xin, const BatchVec<outputs>& yin) const {
+      const int batchSize = xin.cols();
+      scalar cost = first_layer_.costFuncRecurse(net, xin, yin);
+      return cost / batchSize;
+    }
   };
   
   
 } // namespace ceptron
 
+
+// this syntax is ridiculously out-of-hand, and I'm not even sure what the proper syntax is.
+// it's probably best to just define all these functions in the declaration itself
+// template <size_t N, typename... Layers, size_t N_, typename L0_>
+// ceptron::scalar ceptron::FfnStatic<N, Layers...>::LayerRec<N_, L0_>::costFuncRecurse(const Eigen::Ref<const ArrayX>& net, const BatchVec<ceptron::FfnStatic<N, Layers...>::LayerRec<N_, L0_>::inputs>& xin, const BatchVec<ceptron::FfnStatic<N, Layers...>::LayerRec<N_, L0_>::outputs>& yin) const {
+//   // dummy:
+// }
