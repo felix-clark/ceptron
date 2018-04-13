@@ -6,9 +6,9 @@ using namespace ceptron;
 
 // ---- FfnDyn ----
 
-int FfnDyn::numOutputs() const { return first_layer_->getNumEndOutputs(); }
+int FfnDyn::numOutputs() const { return first_layer_->numEndOutputs(); }
 
-int FfnDyn::numInputs() const { return first_layer_->getNumInputs(); }
+int FfnDyn::numInputs() const { return first_layer_->numInputs(); }
 
 void FfnDyn::setL2Reg(scalar l) { first_layer_->setL2RegRecurse(l); }
 
@@ -56,13 +56,13 @@ FfnDyn::Layer::Layer(InternalActivator, RegressionType reg, size_t ins,
   activation_func_ = std::bind(outputGate, reg, std::placeholders::_1);
 }
 
-size_t FfnDyn::Layer::getNumWeightsRecurse() const {
-  const size_t thisSize = getNumWeights();
-  return is_output_ ? thisSize : thisSize + next_layer_->getNumWeightsRecurse();
+size_t FfnDyn::Layer::numWeightsRecurse() const {
+  const size_t thisSize = numWeights();
+  return is_output_ ? thisSize : thisSize + next_layer_->numWeightsRecurse();
 }
 
-size_t FfnDyn::Layer::getNumEndOutputs() const {
-  return is_output_ ? outputs_ : next_layer_->getNumEndOutputs();
+size_t FfnDyn::Layer::numEndOutputs() const {
+  return is_output_ ? outputs_ : next_layer_->numEndOutputs();
 }
 
 void FfnDyn::Layer::setL2RegRecurse(scalar l) {
@@ -116,12 +116,12 @@ scalar FfnDyn::Layer::costFuncRecurse(
   scalar regTerm = l2_lambda_ * weights.array().square().sum();
   BatchVecX x1 = activation_func_(a1);
   if (is_output_) {
-    assert(insize == getNumWeights());
+    assert(insize == numWeights());
     // BatchVecX x1 = outputGate(reg_, a1); // would be nice to generalize
     // outputGate and activ. member function at initialization?
     return regTerm + costFuncVal(reg_, x1, yin);
   } else {
-    assert(insize > getNumWeights());
+    assert(insize > numWeights());
     // BatchArrayX x1 = activ(act_, a1.array());
     const Eigen::Ref<const ArrayX>& remNet = netvals.segment(
         num_weights_,
@@ -149,14 +149,14 @@ MatX FfnDyn::Layer::getCostFuncGradRecurse(
   BatchVecX x1 = activation_func_(a1.array()).matrix();
   BatchVecX delta = BatchVecX::Zero(x1.cols(), x1.rows());
   if (is_output_) {
-    assert(insize == getNumWeights());
+    assert(insize == numWeights());
     // in principle not every regression type might work out to have the bias
     // error term be so simple, but most are constructed this way.
     // in general this could be a non-trivial function that we will need to get
     // from the RegressionType.
     delta = x1 - yin;  // a function of output x
   } else {
-    assert(insize > getNumWeights());
+    assert(insize > numWeights());
     BatchVecX e = activ_to_d_func_(x1.array()).matrix();
     const Eigen::Ref<const ArrayX>& nextNet =
         netvals.segment(num_weights_, insize - num_weights_);
@@ -186,11 +186,11 @@ VecX FfnDyn::Layer::predictRecurse(const Eigen::Ref<const ArrayX>& netvals,
   a1.colwise() += bias;
   BatchVecX x1 = activation_func_(a1.array()).matrix();
   if (is_output_) {
-    assert(insize == getNumWeights());
+    assert(insize == numWeights());
     return x1;
   }
   // we are in an internal layer
-  assert(insize > getNumWeights());
+  assert(insize > numWeights());
   const Eigen::Ref<const ArrayX> remNet = netvals.segment(
       num_weights_,
       insize - num_weights_);  // remaining parameters to be passed on

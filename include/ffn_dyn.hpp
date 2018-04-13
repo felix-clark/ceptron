@@ -85,13 +85,13 @@ class FfnDyn {
     VecX predictRecurse(const Eigen::Ref<const ArrayX>& net,
                         const VecX& xin) const;
 
-    size_t getNumInputs() const { return inputs_; }
-    size_t getNumOutputs() const { return outputs_; }
-    size_t getNumEndOutputs() const;
-    int getNumWeights() const { return outputs_ * (inputs_ + 1); }
-    size_t getNumWeightsRecurse() const;  // recursively compute the total
-                                          // number of weight elements including
-                                          // this layer and all in front
+    size_t numInputs() const { return inputs_; }
+    size_t numOutputs() const { return outputs_; }
+    size_t numEndOutputs() const;
+    int numWeights() const { return outputs_ * (inputs_ + 1); }
+    size_t numWeightsRecurse() const;  // recursively compute the total
+                                       // number of weight elements including
+                                       // this layer and all in front
    private:
     size_t inputs_;
     size_t outputs_;
@@ -143,7 +143,7 @@ FfnDyn::FfnDyn(RegressionType reg, InternalActivator act, Ts... layer_sizes) {
   static_assert(sizeof...(layer_sizes) > 1,
                 "network needs more than a single layer to be meaningful");
   first_layer_ = std::make_unique<Layer>(act, reg, layer_sizes...);
-  size_ = first_layer_->getNumWeightsRecurse();
+  size_ = first_layer_->numWeightsRecurse();
 }
 
 // could maybe switch order of parameters w/ a template, but it's probably not
