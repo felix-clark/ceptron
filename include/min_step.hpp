@@ -53,7 +53,7 @@ class GradientDescent : public IMinStep {
 
 class GradientDescentWithMomentum : public IMinStep {
  public:
-  GradientDescentWithMomentum(int npar) : momentum_term_(ArrayX::Zero(npar)){};
+  explicit GradientDescentWithMomentum(int npar) : momentum_term_(ArrayX::Zero(npar)){};
   ~GradientDescentWithMomentum() = default;
   virtual ArrayX getDeltaPar(func_t, grad_t, ArrayX) override;
   virtual void resetCache() override { momentum_term_.setZero(); }
@@ -71,7 +71,7 @@ class GradientDescentWithMomentum : public IMinStep {
 
 class AcceleratedGradient : public IMinStep {
  public:
-  AcceleratedGradient(int npar) : momentum_term_(ArrayX::Zero(npar)){};
+  explicit AcceleratedGradient(int npar) : momentum_term_(ArrayX::Zero(npar)){};
   // AcceleratedGradient(scalar learn_rate=0.01,
   // 		      scalar momentum_scale=0.875);
   ~AcceleratedGradient() = default;
@@ -92,7 +92,7 @@ class AcceleratedGradient : public IMinStep {
 
 class AdaDelta : public IMinStep {
  public:
-  AdaDelta(int npar)
+  explicit AdaDelta(int npar)
       : accum_grad_sq_(ArrayX::Zero(npar)),
         accum_dpar_sq_(ArrayX::Zero(npar)),
         last_delta_par_(ArrayX::Zero(npar)){};
@@ -120,7 +120,7 @@ class AdaDelta : public IMinStep {
 
 class Bfgs : public IMinStep {
  public:
-  Bfgs(int npar) : hessian_approx_(MatX::Identity(npar, npar)){};
+  explicit Bfgs(int npar) : hessian_approx_(MatX::Identity(npar, npar)){};
   ~Bfgs(){};
   virtual ArrayX getDeltaPar(func_t, grad_t, ArrayX) override;
   virtual void resetCache() override;

@@ -160,20 +160,18 @@ func_grad_res costFuncAndGrad(const Net& net, const ArrayX& netvals,
   scalar costFuncVal =
       Regressor<Net::RegType>::template costFuncVal<BatchArray<M>>(x2.array(),
                                                                    y.array());
+  // lambda*sum (weights^2), but we don't include the bias terms
   scalar costFuncReg =
       w1.template rightCols<N>().array().square().sum() +
-      w2.template rightCols<P>().array().square().sum();  // lambda*sum
-                                                          // (weights^2), but we
-                                                          // don't include the
-                                                          // bias terms
+      w2.template rightCols<P>().array().square().sum();
   costFuncVal += net.getL2Reg() * costFuncReg;
 
   // now do backwards propagation
 
   // with layer L being the output layer:
   // dx_j^(L)/dw_mn^(L) = sigma'[a_j^(L)] * delta_jm * x_n^(L-1)
-  // dx_j^(L)/dw_mn^(L-1) = sigma'[a_j^(L)] * w_jm^(L) * sigma'[a_m^(L-1)] *
-  // x_n^(L-2)
+  // dx_j^(L)/dw_mn^(L-1) =
+  //    sigma'[a_j^(L)] * w_jm^(L) * sigma'[a_m^(L-1)] * x_n^(L-2)
   // dx_j^(L)/dw_mn^(L-2) = sigma'[a_j^(L)] * Sum_k{  w_jk^(L) *
   // sigma'[a_k^(L-1)] * w_km^(L-1) } * sigma'[a_m^(L-2)] * x_n^(L-3)
   /// more generally:
@@ -189,7 +187,6 @@ func_grad_res costFuncAndGrad(const Net& net, const ArrayX& netvals,
   BatchVec<P> d1 =
       e1.cwiseProduct((w2.template rightCols<P>()).transpose() * d2);
 
-  // Array<SlfnStatic<N,M,P>::size()> costFuncGrad;
   Array<Net::size> costFuncGrad;
   // Vec<P> gb1 = d1.rowwise().sum(); // this operation contracts along the axis
   // of different batch data points
@@ -253,12 +250,10 @@ scalar costFunc(const Net& net, const ArrayX& netvals,
                                                                    y.array());
   scalar costFuncReg =
       w1.template rightCols<N>().array().square().sum() +
-      w2.template rightCols<P>().array().square().sum();  // lambda*sum
-                                                          // (weights^2), but we
-                                                          // don't include the
-                                                          // bias terms
+      w2.template rightCols<P>().array().square().sum();
+  // lambda*sum (weights^2), but we don't include the bias terms
   costFuncVal += net.getL2Reg() * costFuncReg;
-  // normalize after regularization term, which seems like a strange convention
+  // normalize after regularization term seems to be the convention
   costFuncVal /= batchSize;
   return costFuncVal;
 }

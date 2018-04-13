@@ -159,9 +159,9 @@ class LayerRec<N_, L0_, L1_, Rest_...>
 				    const BatchVec<this_t::outputs>& yin,
 				    Eigen::Ref<ArrayX> grad) const;
   // function returns the prediction or a given input
-  BatchVec<this_t::outputs> predictRecurse(
+  BatchVec<traits_t::outputs> predictRecurse(
       const Eigen::Ref<const ArrayX>& net,
-      const BatchVec<this_t::inputs>& xin) const;
+      const BatchVec<traits_t::inputs>& xin) const;
 
   inline BatchVec<this_t::size> activation(
       const BatchVec<this_t::size>& xin) const {
@@ -209,9 +209,9 @@ class LayerRec<N_, L0_> : public LayerBase<LayerRec<N_, L0_>> {
 				    const BatchVec<this_t::outputs>& yin,
 				    Eigen::Ref<ArrayX> grad) const;
   // function returns the prediction or a given input
-  BatchVec<this_t::outputs> predictRecurse(
+  BatchVec<traits_t::outputs> predictRecurse(
       const Eigen::Ref<const ArrayX>& net,
-      const BatchVec<this_t::inputs>& xin) const;
+      const BatchVec<traits_t::inputs>& xin) const;
 
   inline BatchVec<this_t::size> activation(
       const BatchVec<this_t::size>& xin) const {
@@ -225,19 +225,19 @@ class LayerRec<N_, L0_> : public LayerBase<LayerRec<N_, L0_>> {
 };  // class LayerRec (output case)
 
 template <size_t N, typename L0>
-BatchVec<LayerRec<N, L0>::outputs> LayerRec<N, L0>::predictRecurse(
+BatchVec<LayerTraits<LayerRec<N, L0>>::outputs> LayerRec<N, L0>::predictRecurse(
     const Eigen::Ref<const ArrayX>& net,
-    const BatchVec<LayerRec<N, L0>::inputs>& xin) const {
+    const BatchVec<LayerTraits<LayerRec<N, L0>>::inputs>& xin) const {
   ///*auto*/ -> BatchVec<LayerRec<N, L0>::outputs> { // unfortunately this c++14
   ///syntax does not work w/ clang.. ?
   return (*this)(net, xin);
 }
 
 template <size_t N, typename L0, typename L1, typename... Rest>
-BatchVec<LayerRec<N, L0, L1, Rest...>::outputs>
+BatchVec<LayerTraits<LayerRec<N, L0, L1, Rest...>>::outputs>
 LayerRec<N, L0, L1, Rest...>::predictRecurse(
     const Eigen::Ref<const ArrayX>& net,
-    const BatchVec<LayerRec<N, L0, L1, Rest...>::inputs>& xin) const {
+    const BatchVec<LayerTraits<LayerRec<N, L0, L1, Rest...>>::inputs>& xin) const {
   // auto -> BatchVec<LayerRec<N, L0, L1, Rest...>::outputs> { // this doesn't
   // work in clang...
   return next_layer_.predictRecurse(remainingNetParRef(net), (*this)(net, xin));

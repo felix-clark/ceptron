@@ -104,20 +104,15 @@ class FfnDyn {
     bool is_output_ = false;  // is this the last layer in the net?
     RegressionType reg_;  // it's redundant saving this in every layer but it
                           // makes things easier for now.
+    std::unique_ptr<Layer> next_layer_;
+    
     // perhaps we don't have to store both the above if we have this activation
     // function stored:
-    std::function<BatchArrayX(BatchArrayX)> activation_func_;  // we could
-                                                               // similarly
-                                                               // store the cost
-                                                               // function
-                                                               // calculation
-                                                               // for the output
-                                                               // layer only, so
-                                                               // we don't have
-                                                               // to save reg_.
+    std::function<BatchArrayX(BatchArrayX)> activation_func_;
+    // we could similarly store the cost function calculation for the output
+    // layer only, so we don't have to save reg_.
     std::function<BatchArrayX(BatchArrayX)> activ_to_d_func_;
 
-    std::unique_ptr<Layer> next_layer_;
     // is a pointer to the last layer useful for anything? seems we can get most
     // everything recursively
 
@@ -127,11 +122,8 @@ class FfnDyn {
     // TODO: dropout probability: probability that a node is zeroed out for a
     // calculation.
     // when getting cost function and gradient at the same time we need to make
-    // the masks identical
-    // this might play poorly w/ calculations that require multiple calculations
-    // of the objective function (contour tracing)
-    // we need to scale the values of neurons by (1-p) when extracting
-    // predictions
+    // the masks identical this might play poorly w/ calculations that require multiple calculations
+    // of the objective function (contour tracing) we need to scale the values of neurons by (1-p) when extracting predictions
     // scalar dropout_p_=0.;
 
   };  // class Layer
@@ -151,13 +143,11 @@ FfnDyn::FfnDyn(RegressionType reg, InternalActivator act, Ts... layer_sizes) {
 template <typename... Ts>
 FfnDyn::Layer::Layer(InternalActivator act, RegressionType reg, size_t ins,
                      size_t n1, size_t n2, Ts... others)
-    : inputs_(ins), is_output_(false), reg_(reg) {
-  next_layer_ = std::make_unique<Layer>(act, reg, n1, n2, others...);
-  outputs_ = n1;
-  num_weights_ = outputs_ * (inputs_ + 1);
-
-  activation_func_ = std::bind(activ, act, std::placeholders::_1);
-  activ_to_d_func_ = std::bind(activToD, act, std::placeholders::_1);
-}
+  : inputs_(ins), outputs_(n1), num_weights_(outputs_ * (inputs_ + 1))
+  , is_output_(false), reg_(reg)
+  , next_layer_(std::make_unique<Layer>(act, reg, n1, n2, others...))
+  , activation_func_(std::bind(activ, act, std::placeholders::_1))
+  , activ_to_d_func_(std::bind(activToD, act, std::placeholders::_1))
+{}
 
 }  // namespace ceptron
