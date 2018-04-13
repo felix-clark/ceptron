@@ -16,7 +16,7 @@ using namespace ceptron;
 // a local formatting option block for convenience
 const Eigen::IOFormat my_fmt(3,  // first value is the precision
                              0, ", ", "\n", "[", "]");
-constexpr scalar scalar_ep = std::numeric_limits<ceptron::scalar>::epsilon();
+constexpr scalar scalar_ep = std::numeric_limits<scalar>::epsilon();
 // constexpr sqrt are not part of the standard, though they do work in g++
 const scalar local_epsilon = std::cbrt(scalar_ep);
 const scalar default_tol = std::sqrt(scalar_ep);

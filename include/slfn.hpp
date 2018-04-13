@@ -110,9 +110,9 @@ Array<Net::size> randomWeights() {
 // the runtime version has that organization, so perhaps we'll keep them
 // different and see which we like best.
 template <typename Net>
-ceptron::func_grad_res costFuncAndGrad(const Net& net, const ArrayX& netvals,
-                                       const BatchVec<Net::inputs>& x0,
-                                       const BatchVec<Net::outputs>& y) {
+func_grad_res costFuncAndGrad(const Net& net, const ArrayX& netvals,
+			      const BatchVec<Net::inputs>& x0,
+			      const BatchVec<Net::outputs>& y) {
   const auto batchSize = x0.cols();
   assert(batchSize == y.cols());
 

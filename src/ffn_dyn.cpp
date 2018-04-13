@@ -132,7 +132,7 @@ scalar FfnDyn::Layer::costFuncRecurse(
 
 MatX FfnDyn::Layer::getCostFuncGradRecurse(
     const Eigen::Ref<const ArrayX>& netvals, const BatchVecX& xin,
-    const BatchVecX& yin, /*const*/ Eigen::Ref<ArrayX> /*&*/ gradnet)
+    const BatchVecX& yin, Eigen::Ref<ArrayX> gradnet)
     const {  // , regularization etc.)
   // const auto batchsize = xin.cols();
   assert(xin.cols() == yin.cols());
@@ -167,7 +167,7 @@ MatX FfnDyn::Layer::getCostFuncGradRecurse(
     delta = e.cwiseProduct(
         next_layer_->getCostFuncGradRecurse(nextNet, x1, yin, nextGrad));
   }
-  MatX gw = delta * xin.matrix().transpose() + 2.0 * l2_lambda_ * weights;
+  MatX gw = delta * xin.transpose() + 2.0 * l2_lambda_ * weights;
   gradnet.segment(0, outputs_) =
       delta.rowwise().sum().array();  // bias gradient
   gradnet.segment(outputs_, inputs_ * outputs_) =

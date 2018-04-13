@@ -6,7 +6,7 @@
 
 namespace ceptron {
 
-void toFile(const ceptron::ArrayX& net, const std::string& fname);
-ceptron::ArrayX fromFile(const std::string& fname);
+void toFile(const ArrayX& net, const std::string& fname);
+ArrayX fromFile(const std::string& fname);
 
 }  // namespace ceptron

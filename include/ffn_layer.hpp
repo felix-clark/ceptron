@@ -56,6 +56,7 @@ struct LayerTraits<LayerRec<N_, L0_>> {
   static constexpr size_t inputs = N_;       // number of incoming values
   static constexpr size_t size = L0_::size;  // number of values in this layer
   static constexpr size_t outputs = size;
+  static constexpr size_t netSize = outputs*(inputs+1);
 };
 template <size_t N_, typename L0_, typename L1_, typename... Rest_>
 struct LayerTraits<LayerRec<N_, L0_, L1_, Rest_...>> {
@@ -65,6 +66,7 @@ struct LayerTraits<LayerRec<N_, L0_, L1_, Rest_...>> {
   // static constexpr size_t outputs = LayerTraits< typename
   // LayerRec<N_,L0_,L1_,Rest_...>::next_layer_t >::outputs;
   static constexpr size_t outputs = LayerTraits<next_layer_t>::outputs;
+  static constexpr size_t netSize = outputs*(inputs+1) + LayerTraits<next_layer_t>::netSize;
 };
 
 // static interface class for Layer classes
@@ -122,7 +124,7 @@ struct LayerBase {
   }
   // returns the rest of the array, which holds the remaining net parameters not
   // used by this
-  inline ArrayX remainingNetPars(const Eigen::Ref<const ArrayX>& net) const {
+  inline ArrayX remainingNetParRef(const Eigen::Ref<const ArrayX>& net) const {
     // will we have an issue with this being treated as a temporary object?
     return net.segment(size * (inputs + 1), net.size() - size * (inputs + 1));
   }
@@ -147,10 +149,15 @@ class LayerRec<N_, L0_, L1_, Rest_...>
   using base_t::inputs;
   using base_t::size;
   using base_t::outputs;
-  // LayerRec() = default;
+  // returns the cost function
   scalar costFuncRecurse(const Eigen::Ref<const ArrayX>& net,
                          const BatchVec<N_>& xin,
                          const BatchVec<this_t::outputs>& yin) const;
+  // returns the matrix needed for backprop, and sets the gradient by reference
+  BatchVec<N_> costFuncGradBackprop(const Eigen::Ref<const ArrayX>& net,
+				    const BatchVec<N_>& xin,
+				    const BatchVec<this_t::outputs>& yin,
+				    Eigen::Ref<ArrayX> grad) const;
   // function returns the prediction or a given input
   BatchVec<this_t::outputs> predictRecurse(
       const Eigen::Ref<const ArrayX>& net,
@@ -160,13 +167,17 @@ class LayerRec<N_, L0_, L1_, Rest_...>
       const BatchVec<this_t::size>& xin) const {
     return L0_::template activ<BatchArray<size>>(xin.array()).matrix();
   }
+  inline BatchVec<this_t::size> activationToD(
+      const BatchVec<this_t::size>& xin) const {
+    return L0_::template activToD<BatchArray<size>>(xin.array()).matrix();
+  }
 
  private:
   using next_layer_t = LayerRec<size, L1_, Rest_...>;
   next_layer_t next_layer_;
   using base_t::bias;
   using base_t::weight;
-  using base_t::remainingNetPars;
+  using base_t::remainingNetParRef;
 
 };  // class LayerRec (internal case)
 
@@ -192,6 +203,11 @@ class LayerRec<N_, L0_> : public LayerBase<LayerRec<N_, L0_>> {
                          const BatchVec<N_>& xin,
                          // const BatchVec<L0_::size>& yin) const;
                          const BatchVec<this_t::outputs>& yin) const;
+  // returns the matrix needed for backprop, and sets the gradient by reference
+  BatchVec<N_> costFuncGradBackprop(const Eigen::Ref<const ArrayX>& net,
+				    const BatchVec<N_>& xin,
+				    const BatchVec<this_t::outputs>& yin,
+				    Eigen::Ref<ArrayX> grad) const;
   // function returns the prediction or a given input
   BatchVec<this_t::outputs> predictRecurse(
       const Eigen::Ref<const ArrayX>& net,
@@ -224,14 +240,14 @@ LayerRec<N, L0, L1, Rest...>::predictRecurse(
     const BatchVec<LayerRec<N, L0, L1, Rest...>::inputs>& xin) const {
   // auto -> BatchVec<LayerRec<N, L0, L1, Rest...>::outputs> { // this doesn't
   // work in clang...
-  return next_layer_.predictRecurse(remainingNetPars(net), (*this)(net, xin));
+  return next_layer_.predictRecurse(remainingNetParRef(net), (*this)(net, xin));
 }
 
 template <size_t N, typename L0, typename L1, typename... Rest>
 scalar LayerRec<N, L0, L1, Rest...>::costFuncRecurse(
     const Eigen::Ref<const ArrayX>& net, const BatchVec<N>& xin,
     const BatchVec<LayerRec<N, L0, L1, Rest...>::outputs>& yin) const {
-  return next_layer_.costFuncRecurse(remainingNetPars(net), (*this)(net, xin),
+  return next_layer_.costFuncRecurse(remainingNetParRef(net), (*this)(net, xin),
                                      yin);
 }
 
@@ -242,6 +258,38 @@ scalar LayerRec<N, L0>::costFuncRecurse(
   // const BatchVec<L0::size>& yin) const {
   return L0::template costFuncVal<BatchArray<size>>((*this)(net, xin).array(),
                                                     yin.array());
+}
+
+template <size_t N, typename L0, typename L1, typename... Rest>
+BatchVec<N> LayerRec<N, L0, L1, Rest...>::costFuncGradBackprop(const Eigen::Ref<const ArrayX>& net,
+						  const BatchVec<N>& xin,
+						  const BatchVec<LayerRec<N, L0, L1, Rest...>::outputs>& yin,
+						  Eigen::Ref<ArrayX> grad) const {
+  BatchVec<size> x1 = (*this)(net, xin);
+  BatchArray<size> e = activationToD(x1).array(); // define as array for component-wise multiplication
+  Eigen::Ref<ArrayX> remainingGrad = grad.segment(outputs*(inputs+1),net.size() - outputs*(inputs+1));
+  // the derivative term (e) is component-wise multiplied by the return value of the next function call
+  BatchVec<size> delta =
+    (e * next_layer_.costFuncGradBackprop(remainingNetParRef(net), x1, yin, remainingGrad)).matrix();
+  grad.segment<outputs>(0) = delta.rowwise().sum().array(); // bias terms for gradient
+  Mat<size,inputs> gw = delta * xin.transpose(); // + 2 * l2_lambda * weights; , if we had regularization internal
+  grad.segment<inputs*outputs>(outputs) =
+    Map<ArrayX>(gw.data(), inputs*outputs);
+  return weight(net).transpose() * delta;
+}
+
+template <size_t N, typename L0>
+BatchVec<N> LayerRec<N, L0>::costFuncGradBackprop(const Eigen::Ref<const ArrayX>& net,
+						  const BatchVec<N>& xin,
+						  const BatchVec<LayerRec<N, L0>::outputs>& yin,
+						  Eigen::Ref<ArrayX> grad) const {
+  BatchVec<size> x1 = (*this)(net, xin);
+  BatchVec<size> delta = x1 - yin;
+  grad.segment<outputs>(0) = delta.rowwise().sum().array(); // bias terms for gradient
+  Mat<size,inputs> gw = delta * xin.transpose(); // + 2 * l2_lambda * weights; , if we had regularization internal
+  grad.segment<inputs*outputs>(outputs) =
+    Map<ArrayX>(gw.data(), inputs*outputs);
+  return weight(net).transpose() * delta;
 }
 
 }  // namespace ceptron

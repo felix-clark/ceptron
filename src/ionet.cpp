@@ -13,7 +13,7 @@ namespace {
 using namespace ceptron;
 }
 
-void ceptron::toFile(const ceptron::ArrayX& net, const std::string& fname) {
+void ceptron::toFile(const ArrayX& net, const std::string& fname) {
   // ios::trunc erases any previous content in the file.
   std::ofstream fout(fname, std::ios::binary | std::ios::trunc);
   if (!fout.is_open()) {
@@ -48,7 +48,7 @@ ceptron::ArrayX ceptron::fromFile(const std::string& fname) {
     throw std::runtime_error("failed to open file");
   }
   std::string line;
-  std::vector<ceptron::scalar> vals;
+  std::vector<scalar> vals;
   while (std::getline(fin, line)) {
     // the fact that this one line doesn't work is actually either a bug in g++
     // or a flaw in the standards.
