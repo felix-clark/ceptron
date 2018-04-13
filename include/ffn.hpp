@@ -16,12 +16,11 @@ template <size_t Nin, typename... Layers>
 class FfnStatic {
   static_assert(sizeof...(Layers) > 0, "a FFNN needs more than an input layer");
  private:
-  // member is recursively-defined first layer, which holds remaining layers.
+  // this member is recursively-defined first layer, which holds remaining layers.
   using first_layer_t = LayerRec<Nin, Layers...>;
   first_layer_t first_layer_;
  public:
   static constexpr size_t inputs = Nin;
-  // static constexpr size_t outputs = decltype(first_layer_)::outputs;
   static constexpr size_t outputs = decltype(first_layer_)::outputs;
   // get output for an input, in other words, the net's prediction
   BatchVec<outputs> operator()(const ArrayX& net,
