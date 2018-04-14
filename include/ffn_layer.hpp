@@ -152,16 +152,24 @@ class LayerRec<N_, L0_, L1_, Rest_...>
   // returns the cost function
   scalar costFuncRecurse(const Eigen::Ref<const ArrayX>& net,
                          const BatchVec<N_>& xin,
-                         const BatchVec<this_t::outputs>& yin) const;
+                         const BatchVec<this_t::outputs>& yin) const {
+      return next_layer_.costFuncRecurse(remainingNetParRef(net),
+					 (*this)(net, xin),
+					 yin);
+  }
   // returns the matrix needed for backprop, and sets the gradient by reference
   BatchVec<N_> costFuncGradBackprop(const Eigen::Ref<const ArrayX>& net,
 				    const BatchVec<N_>& xin,
 				    const BatchVec<this_t::outputs>& yin,
 				    Eigen::Ref<ArrayX> grad) const;
   // function returns the prediction or a given input
-  BatchVec<traits_t::outputs> predictRecurse(
+  // this and some others will be defined in the class declaration since
+  //  the function is simple and the template syntax is not clean
+  BatchVec<outputs> predictRecurse(
       const Eigen::Ref<const ArrayX>& net,
-      const BatchVec<traits_t::inputs>& xin) const;
+      const BatchVec<inputs>& xin) const {
+    return next_layer_.predictRecurse(remainingNetParRef(net), (*this)(net, xin));  
+  }
 
   inline BatchVec<this_t::size> activation(
       const BatchVec<this_t::size>& xin) const {
@@ -201,17 +209,21 @@ class LayerRec<N_, L0_> : public LayerBase<LayerRec<N_, L0_>> {
   // define below
   scalar costFuncRecurse(const Eigen::Ref<const ArrayX>& net,
                          const BatchVec<N_>& xin,
-                         // const BatchVec<L0_::size>& yin) const;
-                         const BatchVec<this_t::outputs>& yin) const;
+                         const BatchVec<outputs>& yin) const {
+    return L0_::template costFuncVal<BatchArray<size>>((*this)(net, xin).array(),
+						      yin.array());
+  }
   // returns the matrix needed for backprop, and sets the gradient by reference
   BatchVec<N_> costFuncGradBackprop(const Eigen::Ref<const ArrayX>& net,
 				    const BatchVec<N_>& xin,
 				    const BatchVec<this_t::outputs>& yin,
 				    Eigen::Ref<ArrayX> grad) const;
   // function returns the prediction or a given input
-  BatchVec<traits_t::outputs> predictRecurse(
+  BatchVec<outputs> predictRecurse(
       const Eigen::Ref<const ArrayX>& net,
-      const BatchVec<traits_t::inputs>& xin) const;
+      const BatchVec<inputs>& xin) const {
+    return (*this)(net, xin);
+  }
 
   inline BatchVec<this_t::size> activation(
       const BatchVec<this_t::size>& xin) const {
@@ -223,42 +235,6 @@ class LayerRec<N_, L0_> : public LayerBase<LayerRec<N_, L0_>> {
   using base_t::weight;
 
 };  // class LayerRec (output case)
-
-template <size_t N, typename L0>
-BatchVec<LayerTraits<LayerRec<N, L0>>::outputs> LayerRec<N, L0>::predictRecurse(
-    const Eigen::Ref<const ArrayX>& net,
-    const BatchVec<LayerTraits<LayerRec<N, L0>>::inputs>& xin) const {
-  ///*auto*/ -> BatchVec<LayerRec<N, L0>::outputs> { // unfortunately this c++14
-  ///syntax does not work w/ clang.. ?
-  return (*this)(net, xin);
-}
-
-template <size_t N, typename L0, typename L1, typename... Rest>
-BatchVec<LayerTraits<LayerRec<N, L0, L1, Rest...>>::outputs>
-LayerRec<N, L0, L1, Rest...>::predictRecurse(
-    const Eigen::Ref<const ArrayX>& net,
-    const BatchVec<LayerTraits<LayerRec<N, L0, L1, Rest...>>::inputs>& xin) const {
-  // auto -> BatchVec<LayerRec<N, L0, L1, Rest...>::outputs> { // this doesn't
-  // work in clang...
-  return next_layer_.predictRecurse(remainingNetParRef(net), (*this)(net, xin));
-}
-
-template <size_t N, typename L0, typename L1, typename... Rest>
-scalar LayerRec<N, L0, L1, Rest...>::costFuncRecurse(
-    const Eigen::Ref<const ArrayX>& net, const BatchVec<N>& xin,
-    const BatchVec<LayerRec<N, L0, L1, Rest...>::outputs>& yin) const {
-  return next_layer_.costFuncRecurse(remainingNetParRef(net), (*this)(net, xin),
-                                     yin);
-}
-
-template <size_t N, typename L0>
-scalar LayerRec<N, L0>::costFuncRecurse(
-    const Eigen::Ref<const ArrayX>& net, const BatchVec<N>& xin,
-    const BatchVec<LayerRec<N, L0>::outputs>& yin) const {
-  // const BatchVec<L0::size>& yin) const {
-  return L0::template costFuncVal<BatchArray<size>>((*this)(net, xin).array(),
-                                                    yin.array());
-}
 
 template <size_t N, typename L0, typename L1, typename... Rest>
 BatchVec<N> LayerRec<N, L0, L1, Rest...>::costFuncGradBackprop(const Eigen::Ref<const ArrayX>& net,
