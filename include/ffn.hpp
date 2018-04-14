@@ -24,7 +24,9 @@ class FfnStatic {
   static constexpr size_t outputs = decltype(first_layer_)::outputs;
   // get output for an input, in other words, the net's prediction
   BatchVec<outputs> operator()(const ArrayX& net,
-                               const BatchVec<Nin>& xin) const;
+                               const BatchVec<Nin>& xin) const {
+    return first_layer_.predictRecurse(net, xin);
+  }
   // return the value of the cost function given net data, an input batch,
   //  and observed output.
   scalar costFunc(const ArrayX& net, const BatchVec<Nin>& xin,
@@ -35,13 +37,6 @@ class FfnStatic {
  private:
   
 };
-
-template <size_t Nin, typename... Ts>
-auto FfnStatic<Nin, Ts...>::operator()(const ArrayX& net,
-                                       const BatchVec<Nin>& xin) const
-    -> BatchVec<FfnStatic<Nin, Ts...>::outputs> {
-  return first_layer_.predictRecurse(net, xin);
-}
 
 template <size_t Nin, typename... Ts>
 scalar FfnStatic<Nin, Ts...>::costFunc(
