@@ -207,7 +207,7 @@ int main(int, char**) {
     using Net = FfnStatic<Nin, HiddenLayer_t, OutputLayer_t>;
     Net net;
     // snag this funcionality from the single-layer case
-    ArrayX pars = randomWeights<SlfnStatic<Nin, Nout, Nh>>();
+    ArrayX pars = net.randomWeights();
     scalar testCostFunc = net.costFunc(pars, input, output);
     LOG_INFO("test cost func = " << testCostFunc);
   }  // general-size static net

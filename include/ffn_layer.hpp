@@ -180,6 +180,16 @@ class LayerRec<N_, L0_, L1_, Rest_...>
     return L0_::template activToD<BatchArray<size>>(xin.array()).matrix();
   }
 
+  Array<traits_t::netSize> randParsRecurse() const {
+    Array<outputs*(inputs+1)> pars = decltype(pars)::Zero();
+    pars.template segment<inputs*outputs>(outputs) =
+      ArrayX::Random(inputs*outputs) * sqrt( 6.0 / (inputs + outputs) );
+    // netSize is size of this and all forward layers
+    Array<traits_t::netSize> combPars;
+    combPars << pars, next_layer_.randParsRecurse();
+    return combPars;
+  }
+  
  private:
   using next_layer_t = LayerRec<size, L1_, Rest_...>;
   next_layer_t next_layer_;
@@ -228,6 +238,13 @@ class LayerRec<N_, L0_> : public LayerBase<LayerRec<N_, L0_>> {
   inline BatchVec<this_t::size> activation(
       const BatchVec<this_t::size>& xin) const {
     return L0_::template outputGate<BatchArray<outputs>>(xin.array()).matrix();
+  }
+
+  Array<traits_t::netSize> randParsRecurse() const {
+    Array<traits_t::netSize> pars = decltype(pars)::Zero();
+    pars.template segment<inputs*outputs>(outputs) =
+      Array<inputs*outputs>::Random() * sqrt( 6.0 / (inputs + outputs) );
+    return pars;
   }
 
  private:

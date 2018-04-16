@@ -34,8 +34,7 @@ class FfnStatic {
   ArrayX costFuncGrad(const ArrayX& net, const BatchVec<Nin>& xin,
 		      const BatchVec<outputs>& yin) const;
 
- private:
-  
+  ArrayX randomWeights() const {return first_layer_.randParsRecurse();}
 };
 
 template <size_t Nin, typename... Ts>

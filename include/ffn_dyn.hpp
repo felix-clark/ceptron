@@ -52,8 +52,8 @@ class FfnDyn {
   class Layer;  // we need to forward-declare the class to declare the smart ptr
   // this is only a simple feed-forward net, so unique pointers are sufficient.
   std::unique_ptr<Layer> first_layer_;
-  size_t size_ =
-      0;  // saving this may be redundant, but useful for quick assertions
+  // saving the size may be redundant, but useful for quick assertions
+  size_t size_ = 0;
 
   // ---- recursive definition of layer
 
