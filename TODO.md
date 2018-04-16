@@ -6,9 +6,7 @@ Most ML does just fine with only single-precision, and doubles are not supported
 
 Half-precision floats could even be considered, but this might take some extra work and compromise portability.
 
-## implement arbitrary-size compile-time NNs using template recursion
-
-and work to make error messages clear for incorrect template parameters
+## work on error messages for initializing arbitrary-size compile-time NNs
 
 ## implement dropout regularization
 
