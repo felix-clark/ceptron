@@ -22,6 +22,7 @@ class FfnStatic {
  public:
   static constexpr size_t inputs = Nin;
   static constexpr size_t outputs = decltype(first_layer_)::outputs;
+  static constexpr size_t size = LayerTraits<first_layer_t>::netSize;
   // get output for an input, in other words, the net's prediction
   BatchVec<outputs> operator()(const ArrayX& net,
                                const BatchVec<Nin>& xin) const {
@@ -51,9 +52,10 @@ ArrayX FfnStatic<Nin, Ts...>::costFuncGrad(
     const ArrayX& net, const BatchVec<Nin>& xin,
     const BatchVec<FfnStatic<Nin, Ts...>::outputs>& yin) const {
   const int batchSize = xin.cols();
-  ArrayX grad = ArrayX(LayerTraits<first_layer_t>::netSize);
+  constexpr size_t gsize = LayerTraits<first_layer_t>::netSize;
+  ArrayX grad = ArrayX(gsize);
   // the return value of this recursive function could be interesting when compared to the input data
-  first_layer_.getCostFuncGradRecurse(net, xin, yin);
+  first_layer_.costFuncGradBackprop(net, xin, yin, grad);
   return grad / batchSize;
 }
 

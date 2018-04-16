@@ -30,6 +30,41 @@ void check_gradient(Net& net, const ArrayX& p, const BatchVec<Net::inputs>& xin,
                     const BatchVec<Net::outputs>& yin,
                     scalar ep = local_epsilon, scalar tol = default_tol) {
   constexpr size_t Npar = Net::size;
+  scalar fval = net.costFunc(p, xin, yin);
+  ArrayX evalgrad = net.costFuncGrad(p, xin, yin);
+
+  LOG_TRACE("about to try to compute numerical derivative");
+
+  ArrayX df(Npar);  // maybe can do this slickly with colwise() or rowwise() ?
+  for (size_t i_f = 0; i_f < Npar; ++i_f) {
+    ArrayX dp = ArrayX::Zero(Npar);
+    scalar dpi = ep * sqrt(1.0 + p(i_f) * p(i_f));
+    dp(i_f) = dpi;
+    scalar fplusi = net.costFunc(p + dp, xin, yin);
+    scalar fminusi = net.costFunc(p - dp, xin, yin);
+    df(i_f) = (fplusi - fminusi) / (2 * dpi);
+  }
+
+  LOG_TRACE("about to check with analytic gradient");
+
+  // now check this element-by element
+  scalar sqSumAvg = (df - evalgrad).square().sum() / Npar;
+  if (sqSumAvg > tol * tol * 1 || !df.isFinite().all() ||
+      !evalgrad.isFinite().all()) {
+    LOG_WARNING("gradient check failed at tolerance level "
+                << tol << " (" << sqrt(sqSumAvg) << ")");
+    LOG_WARNING("f(p) = " << fval);
+    LOG_WARNING("numerical derivative = " << df.transpose().format(my_fmt));
+    LOG_WARNING("analytic gradient = " << evalgrad.transpose().format(my_fmt));
+    LOG_WARNING("difference = " << (df - evalgrad).transpose().format(my_fmt));
+  }
+}
+
+template <typename Net>
+void check_gradient_slfn(Net& net, const ArrayX& p, const BatchVec<Net::inputs>& xin,
+                    const BatchVec<Net::outputs>& yin,
+                    scalar ep = local_epsilon, scalar tol = default_tol) {
+  constexpr size_t Npar = Net::size;
   func_grad_res fgvals =
       costFuncAndGrad(net, p, xin, yin);  // this must be done before
   scalar fval = fgvals.f;  // don't think we actually need this, but it might be
@@ -110,9 +145,9 @@ int main(int, char**) {
   // set seed for random initialization (Eigen uses std::rand())
   std::srand(3490);  // could also use std::time(nullptr) from ctime
 
-  constexpr size_t Nin = 8;
-  constexpr size_t Nout = 4;
-  constexpr size_t Nh = 6;  // number of nodes in hidden layer
+  constexpr size_t Nin = 6;
+  constexpr size_t Nout = 2;
+  constexpr size_t Nh = 4;  // number of nodes in hidden layer
   constexpr RegressionType Reg = RegressionType::Categorical;
   // constexpr RegressionType Reg=RegressionType::LeastSquares;
   // constexpr RegressionType Reg=RegressionType::Poisson;
@@ -152,40 +187,41 @@ int main(int, char**) {
 #ifndef NOSTATIC
 
   {  // static single-layer net test
+    LOG_INFO("Checking static SLFN");
     // defines the architecture of our test NN
     using Net = SlfnStatic<Nin, Nout, Nh>;
-    Net testNet;
+    Net testSlfn;
     ArrayX pars = randomWeights<Net>();
-    testNet.setL2Reg(0.01);
+    testSlfn.setL2Reg(0.01);
 
     // we need to change the interface to let us spit out intermediate-layer
     // activations
     // "activation" only has a useful debug meaning for a single layer
     LOG_INFO("input data is:\n" << input.format(my_fmt));
     LOG_DEBUG("first weights:\n"
-              << testNet.getFirstSynapses(pars).format(my_fmt));
+              << testSlfn.getFirstSynapses(pars).format(my_fmt));
     LOG_DEBUG("second weights:\n"
-              << testNet.getSecondSynapses(pars).format(my_fmt));
+              << testSlfn.getSecondSynapses(pars).format(my_fmt));
     // LOG_INFO("net value of array:\n" <<
-    // testNet.getNetValue().format(my_fmt));
+    // testSlfn.getNetValue().format(my_fmt));
     LOG_INFO("array has " << pars.size() << " parameters.");
 
     // do we need to feed in the Net template parameter, or can it be inferred
-    // from testNet?
-    check_gradient(testNet, pars, input, output);
+    // from testSlfn?
+    check_gradient_slfn(testSlfn, pars, input, output);
 
     pars.setRandom();
     input.setRandom();
     // output << 1e-6, 0.02, 0.2, 0.01;
     output.setRandom();
-    check_gradient(testNet, pars, input, output);
+    check_gradient_slfn(testSlfn, pars, input, output);
 
     pars.setRandom();
     input.setRandom();  // should also check pathological x values
     // output << 0.9, -0.1, 10.0, 0.1; // this one has nonsensical values but we
     // can check the gradient regardless (it may give warning messages)
     output.setRandom();
-    check_gradient(testNet, pars, input, output);
+    check_gradient_slfn(testSlfn, pars, input, output);
 
     toFile(pars, "copytest.net");
     decltype(pars) parsCopy = fromFile("copytest.net");
@@ -199,6 +235,7 @@ int main(int, char**) {
   }  // static single-layer net test
 
   {  // general-size static net
+    LOG_INFO("Checking static FFN");
     using HiddenLayer_t = FfnLayerDef<Nh, Act>;
     using OutputLayer_t = FfnOutputLayerDef<Nout, Reg>;
     // using Netfail = FfnStatic<Nin,HiddenLayer_t,HiddenLayer_t>;
@@ -208,8 +245,9 @@ int main(int, char**) {
     Net net;
     // snag this funcionality from the single-layer case
     ArrayX pars = net.randomWeights();
-    scalar testCostFunc = net.costFunc(pars, input, output);
-    LOG_INFO("test cost func = " << testCostFunc);
+    check_gradient(net, pars, input, output);
+    // scalar testCostFunc = net.costFunc(pars, input, output);
+    // LOG_INFO("test cost func = " << testCostFunc);
   }  // general-size static net
 
 #else

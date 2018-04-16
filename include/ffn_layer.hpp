@@ -5,6 +5,7 @@
 // we don't really want these recursive layer definitions to be publicly
 // exposed, but it's too messy to try to make them private member classes of
 // FfnStatic.
+
 namespace ceptron {
 
 // a layer should be able to be defined solely by its size and its activation
@@ -17,7 +18,6 @@ struct FfnLayerDef : public ActivFunc<act> {
   ~FfnLayerDef() = default;
   static constexpr size_t size = n;
   // import activation functions and derivatives
-  // std::function<Array<n>(const Array<n>&)> activ = ActivFunc<act>::activ;
   // we don't actually need to do this w/ inheritance, and in fact it probably
   //  requires less header code to remove them.
   using ActivFunc<act>::activ;
@@ -25,6 +25,9 @@ struct FfnLayerDef : public ActivFunc<act> {
 };
 
 // create a different type which specializes output layers
+//  we might be able to define this such that it doesn't need a different name,
+//  and is automatically an output layer when it gets a RegressionType instead
+//  InternalActivator.
 template <size_t n, RegressionType reg>
 struct FfnOutputLayerDef : public Regressor<reg> {
   FfnOutputLayerDef() = default;
@@ -66,7 +69,7 @@ struct LayerTraits<LayerRec<N_, L0_, L1_, Rest_...>> {
   // static constexpr size_t outputs = LayerTraits< typename
   // LayerRec<N_,L0_,L1_,Rest_...>::next_layer_t >::outputs;
   static constexpr size_t outputs = LayerTraits<next_layer_t>::outputs;
-  static constexpr size_t netSize = outputs*(inputs+1) + LayerTraits<next_layer_t>::netSize;
+  static constexpr size_t netSize = size*(inputs+1) + LayerTraits<next_layer_t>::netSize;
 };
 
 // static interface class for Layer classes
@@ -181,9 +184,9 @@ class LayerRec<N_, L0_, L1_, Rest_...>
   }
 
   Array<traits_t::netSize> randParsRecurse() const {
-    Array<outputs*(inputs+1)> pars = decltype(pars)::Zero();
-    pars.template segment<inputs*outputs>(outputs) =
-      ArrayX::Random(inputs*outputs) * sqrt( 6.0 / (inputs + outputs) );
+    Array<size*(inputs+1)> pars = decltype(pars)::Zero();
+    pars.template segment<inputs*size>(size) =
+      ArrayX::Random(inputs*size) * sqrt( 6.0 / (inputs + size) );
     // netSize is size of this and all forward layers
     Array<traits_t::netSize> combPars;
     combPars << pars, next_layer_.randParsRecurse();
@@ -259,15 +262,15 @@ BatchVec<N> LayerRec<N, L0, L1, Rest...>::costFuncGradBackprop(const Eigen::Ref<
 						  const BatchVec<LayerRec<N, L0, L1, Rest...>::outputs>& yin,
 						  Eigen::Ref<ArrayX> grad) const {
   BatchVec<size> x1 = (*this)(net, xin);
-  BatchArray<size> e = activationToD(x1).array(); // define as array for component-wise multiplication
-  Eigen::Ref<ArrayX> remainingGrad = grad.segment(outputs*(inputs+1),net.size() - outputs*(inputs+1));
+  BatchVec<size> e = activationToD(x1); // define as array for component-wise multiplication
+  Eigen::Ref<ArrayX> remainingGrad = grad.segment(size*(inputs+1),net.size() - size*(inputs+1));
   // the derivative term (e) is component-wise multiplied by the return value of the next function call
   BatchVec<size> delta =
-    (e * next_layer_.costFuncGradBackprop(remainingNetParRef(net), x1, yin, remainingGrad)).matrix();
-  grad.segment<outputs>(0) = delta.rowwise().sum().array(); // bias terms for gradient
+    e.cwiseProduct(next_layer_.costFuncGradBackprop(remainingNetParRef(net), x1, yin, remainingGrad));
+  grad.segment<size>(0) = delta.rowwise().sum().array(); // bias terms for gradient
   Mat<size,inputs> gw = delta * xin.transpose(); // + 2 * l2_lambda * weights; , if we had regularization internal
-  grad.segment<inputs*outputs>(outputs) =
-    Map<ArrayX>(gw.data(), inputs*outputs);
+  grad.segment<inputs*size>(size) =
+    Map<ArrayX>(gw.data(), inputs*size);
   return weight(net).transpose() * delta;
 }
 
@@ -278,6 +281,7 @@ BatchVec<N> LayerRec<N, L0>::costFuncGradBackprop(const Eigen::Ref<const ArrayX>
 						  Eigen::Ref<ArrayX> grad) const {
   BatchVec<size> x1 = (*this)(net, xin);
   BatchVec<size> delta = x1 - yin;
+  static_assert( outputs == size, "in output layer, outputs should be same as size" );
   grad.segment<outputs>(0) = delta.rowwise().sum().array(); // bias terms for gradient
   Mat<size,inputs> gw = delta * xin.transpose(); // + 2 * l2_lambda * weights; , if we had regularization internal
   grad.segment<inputs*outputs>(outputs) =
