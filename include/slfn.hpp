@@ -49,6 +49,11 @@ class SlfnStatic : public SlfnBase<SlfnStatic<N, M, P, Reg, Act>> {
   // constexpr static size_t size() {return size_;}
   SlfnStatic() = default;  // don't forget to randomly initialize
   // ~SlfnStatic() = default;
+  Vec<M> operator()(const ArrayX& netvals,
+		    const Vec<N>& x0) const {
+    return prediction(*this, netvals, x0);
+  }
+
   // this could be useful for indicating which data elements are most relevant.
   Array<N> inputLayerActivation(const Vec<N>& in) const;  // returns activation
                                                           // from single input.

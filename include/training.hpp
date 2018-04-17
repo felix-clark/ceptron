@@ -25,12 +25,13 @@ void trainSlfnStatic(Net& net, ArrayX& par, IMinStep& ms,
   par += dp;  // increment net
 }
 
+//  TODO: implement a regularization inside this function
 template <typename Net>
-void trainFfnStatic(Net& net, ArrayX& par, IMinStep& ms,
-                     const BatchVec<Net::inputs>& x,
-                     const BatchVec<Net::outputs>& y) {
-  func_t f = std::bind(Net::costFunc, net, std::placeholders::_1, x, y);
-  grad_t g = std::bind(Net::costFuncGrad, net, std::placeholders::_1, x, y);
+void trainFfn(Net& net, ArrayX& par, IMinStep& ms,
+	      const BatchVec<Net::inputs>& x,
+	      const BatchVec<Net::outputs>& y) {
+  func_t f = std::bind(&Net::costFunc, &net, std::placeholders::_1, x, y);
+  grad_t g = std::bind(&Net::costFuncGrad, &net, std::placeholders::_1, x, y);
   ArrayX dp = ms.getDeltaPar(f, g, par);
   par += dp;  // increment net
 }

@@ -46,7 +46,8 @@ class FfnDyn {
                   const BatchVecX& yin) const;
   ArrayX costFuncGrad(const ArrayX& netvals, const BatchVecX& xin,
                       const BatchVecX& yin) const;
-  VecX prediction(const ArrayX& netvals, const VecX& xin) const;
+  // VecX prediction(const ArrayX& netvals, const VecX& xin) const;
+  VecX operator()(const ArrayX& netvals, const VecX& xin) const;
 
  private:
   class Layer;  // we need to forward-declare the class to declare the smart ptr

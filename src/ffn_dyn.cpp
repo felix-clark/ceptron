@@ -34,7 +34,7 @@ ArrayX FfnDyn::costFuncGrad(const ArrayX& netvals, const BatchVecX& xin,
   return grad / batchSize;
 }
 
-VecX FfnDyn::prediction(const ArrayX& netvals, const VecX& xin) const {
+VecX FfnDyn::operator()(const ArrayX& netvals, const VecX& xin) const {
   return first_layer_->predictRecurse(netvals, xin);
 }
 

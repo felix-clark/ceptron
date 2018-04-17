@@ -5,12 +5,13 @@
 #include <string>
 #include <utility>
 #include <vector>
-#include "ffn_dyn.hpp"
 #include "global.hpp"
-#include "log.hpp"
+#include "ffn_dyn.hpp"
 #include "slfn.hpp"
+#include "ffn.hpp"
 #include "train_dyn.hpp"
 #include "training.hpp"
+#include "log.hpp"
 //#include <ctime> // for time
 
 namespace {
@@ -23,7 +24,7 @@ constexpr size_t Nh = 8;    // number of nodes in hidden layer
 constexpr RegressionType Reg = RegressionType::Categorical;
 // constexpr InternalActivator Act=InternalActivator::Softplus;
 constexpr InternalActivator Act = InternalActivator::Tanh;
-using Net = SlfnStatic<Nin, Nout, Nh, Reg, Act>;
+using SlNet = SlfnStatic<Nin, Nout, Nh, Reg, Act>;
 
 using std::string;
 using std::pair;
@@ -60,7 +61,8 @@ void printPredictions(const FfnDyn& net, const ArrayX& pars) {
       {"pikachu", x_pikachu()}};
   for (const auto& animal : animals) {
     LOG_INFO(animal.first << ":");
-    ArrayX pred = net.prediction(pars, animal.second).array();
+    // ArrayX pred = net.prediction(pars, animal.second).array();
+    ArrayX pred = net(pars, animal.second).array();
     auto candidateIndices = (pred > 0.2);
     for (size_t i = 0; i < Nout; ++i) {
       if (candidateIndices[i]) {
@@ -75,9 +77,8 @@ void printPredictions(const FfnDyn& net, const ArrayX& pars) {
 // some kind of enable_if would be good, to make sure it's a SlfnStatic.
 // if we implemented the CRTP we could check that it derived from SlfnBase.
 //  it would be nice to combine this function with the one above, but the
-//  dynamic
-//  version uses member functions of the net while the static one uses
-//  non-member template functions.
+//  dynamic version uses member functions of the net while the static one
+//  uses non-member template functions.
 //  they're kept separate for now mostly just to compare the two interfaces in
 //  real life.
 template <typename Net>
@@ -93,7 +94,8 @@ void printPredictions(const Net& net, const ArrayX& pars) {
       {"pikachu", x_pikachu()}};
   for (const auto& animal : animals) {
     LOG_INFO(animal.first << ":");
-    ArrayX pred = prediction(net, pars, animal.second).array();
+    // ArrayX pred = prediction(net, pars, animal.second).array();
+    ArrayX pred = net(pars, animal.second).array();
     auto candidateIndices = (pred > 0.2);
     for (size_t i = 0; i < Nout; ++i) {
       if (candidateIndices[i]) {
@@ -128,7 +130,7 @@ int main(int argc, char** argv) {
                         // salamander as an amphibian rather than a reptile if
                         // we let it run more.
 
-  {  // do dynamic training
+  {  // do training of dynamic net
     FfnDyn netd(Reg, Act, Nin, Nh, Nout);
     netd.setL2Reg(l2reg);
     ArrayX initparsd = netd.randomWeights();
@@ -157,23 +159,21 @@ int main(int argc, char** argv) {
   {  // do static training
     // since this dataset is rather small, we'll do full batch gradient descent
     // directly.
-    Net net;
+    SlNet net;
     // try setting to same initialization as runtime net:
-    // net.accessNetValue() = initparsd; // indeed this does result in identical
-    // results.
-    ArrayX pars = randomWeights<Net>();
+    ArrayX pars = randomWeights<SlNet>();
     net.setL2Reg(l2reg);
 
     // from a programming perspective it seems preferable to not initialize to
     // random variables, but we have to make sure to remember to randomize every
     // time.
     LOG_INFO("");
-    LOG_INFO("running test on static version");
-    LOG_INFO("parameter space has dimension " << Net::size);
-    // GradientDescent minstep(Net::size); // this could be a choice of a
+    LOG_INFO("running test on single-layer static version");
+    LOG_INFO("parameter space has dimension " << SlNet::size);
+    // GradientDescent minstep(SlNet::size); // this could be a choice of a
     // different minimizer
-    // AcceleratedGradient minstep(Net::size);
-    AdaDelta minstep(Net::size);  // this is a decent first choice since it is
+    // AcceleratedGradient minstep(SlNet::size);
+    AdaDelta minstep(SlNet::size);  // this is a decent first choice since it is
                                   // not supposed to depend strongly on
                                   // hyperparameters
 
@@ -184,12 +184,45 @@ int main(int argc, char** argv) {
         LOG_DEBUG("mid-training predictions:");
         printPredictions(net, pars);
       }
-      trainSlfnStatic<Net>(net, pars, minstep, xb, yb);
+      trainSlfnStatic<SlNet>(net, pars, minstep, xb, yb);
     }
 
     LOG_INFO("post-training predictions:");
     printPredictions(net, pars);
   }  // static training
+  
+  {
+    using HiddenLayer_t = FfnLayerDef<Nh/2, Act>; // for this static one we'll use 2 hidden layers of half size each
+    using OutputLayer_t = FfnOutputLayerDef<Nout, RegressionType::Categorical>;
+    FfnStatic<Nin, HiddenLayer_t, HiddenLayer_t, OutputLayer_t> net;
+    // try setting to same initialization as runtime net:
+    ArrayX pars = net.randomWeights();
+    // net.setL2Reg(l2reg);// we don't have regularization implemented yet
+
+    LOG_INFO("");
+    LOG_INFO("running test on general static version");
+    LOG_INFO("parameter space has dimension " << decltype(net)::size);
+    // GradientDescent minstep(Net::size); // this could be a choice of a
+    // different minimizer
+    // AcceleratedGradient minstep(Net::size);
+    AdaDelta minstep(decltype(net)::size);  // this is a decent first choice since it is
+                                  // not supposed to depend strongly on
+                                  // hyperparameters
+
+    for (int i_ep = 0; i_ep < numEpochs; ++i_ep) {
+      if (i_ep % (numEpochs / 2) == 0) {
+        LOG_INFO("beginning " << i_ep << "th epoch");
+        LOG_INFO("cost function: " << net.costFunc(pars, xb, yb));
+        LOG_DEBUG("mid-training predictions:");
+        printPredictions(net, pars);
+      }
+      trainFfn(net, pars, minstep, xb, yb);
+    }
+
+    LOG_INFO("post-training predictions:");
+    printPredictions(net, pars);
+  }  // general static training
+
 #else
   LOG_INFO("Skipped testing static nets.");
 #endif  // ifndef NOSTATIC
