@@ -35,14 +35,28 @@ class FfnStatic {
   ArrayX costFuncGrad(const ArrayX& net, const BatchVec<Nin>& xin,
 		      const BatchVec<outputs>& yin) const;
 
+private:
+  // some helper template structs for function specialization of activationLayer
+  template <size_t Nl, typename DUMMY=void> struct activationLayer {
+    static BatchVecX func(const first_layer_t& fl,
+			  const ArrayX& net,
+			  const BatchVec<inputs>& xin) {
+      return fl.template activationInLayer<Nl-1>(net, xin);
+    }
+  };
+  template <typename DUMMY> struct activationLayer<0,DUMMY> {
+    static BatchVecX func(const first_layer_t&,
+			  const ArrayX&,
+			  const BatchVec<inputs>& xin) {
+      return xin;
+    }
+  };
+public:
   // returns the activation Nl layers deep for the given input
-  // template <size_t Nl>
-  // we can't specialize template member functions of unspecialized
-  // template classes, so the layer parameter is run-time as of now.
-  BatchVecX activationInLayer(size_t nl, const ArrayX& net,
+  template <size_t Nl>
+  BatchVecX activationInLayer(const ArrayX& net,
                               const BatchVec<inputs>& xin) const {
-    if (nl == 0) return xin; // we will consider the 0th layer to be the input
-    else return first_layer_.activationInLayer(nl-1, net, xin);
+    return activationLayer<Nl>::func(first_layer_, net, xin);
   }
   
   ArrayX randomWeights() const {return first_layer_.randParsRecurse();}

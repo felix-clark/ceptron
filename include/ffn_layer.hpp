@@ -153,11 +153,15 @@ class LayerRec<N_, L0_, L1_, Rest_...>
   using this_t = LayerRec<N_, L0_, L1_, Rest_...>;
   using traits_t = LayerTraits<this_t>;
   using base_t = LayerBase<this_t>;
-
+  
  public:
   using base_t::inputs;
   using base_t::size;
   using base_t::outputs;
+ private:
+  using next_layer_t = LayerRec<size, L1_, Rest_...>;
+ public:
+
   // returns the cost function
   scalar costFuncRecurse(const Eigen::Ref<const ArrayX>& net,
                          const BatchVec<N_>& xin,
@@ -189,19 +193,26 @@ class LayerRec<N_, L0_, L1_, Rest_...>
     return L0_::template activToD<BatchArray<size>>(xin.array()).matrix();
   }
 
-  // template <size_t Nl>
-  BatchVecX activationInLayer(size_t nl,
-			      const Eigen::Ref<const ArrayX>& net,
-                              const BatchVec<inputs>& xin) const {
-    // we can't specialize template functions of non-templated classes.
-    // this if statement may be removed at compile-time, so it should
-    // be an acceptable workaround.
-    if (nl == 0)
-      return (*this)(net, xin);
-    else
-      return next_layer_.activationInLayer(nl-1,
-					   remainingNetParRef(net),
-					   (*this)(net, xin));
+ private:
+  template <size_t Nl, typename DUMMY=void> struct activationLayer {
+    static BatchVecX func(const this_t& t, const next_layer_t& nl,
+			  const Eigen::Ref<const ArrayX>& net,
+			  const BatchVec<inputs>& xin) {
+      return nl.template activationInLayer<Nl-1>(t.remainingNetParRef(net),
+						 t(net, xin));
+    }
+  };
+  template <typename DUMMY> struct activationLayer<0,DUMMY> {
+    static BatchVecX func(const this_t& t, const next_layer_t&,
+			  const Eigen::Ref<const ArrayX>& net,
+			  const BatchVec<inputs>& xin) {
+      return t(net, xin);
+    }
+  };
+ public:
+  template <size_t Nl> BatchVecX activationInLayer(const Eigen::Ref<const ArrayX>& net,
+						   const BatchVec<inputs>& xin) const {
+    return activationLayer<Nl>::func(*this, next_layer_, net, xin);
   }
 
   Array<traits_t::netSize> randParsRecurse() const {
@@ -215,7 +226,6 @@ class LayerRec<N_, L0_, L1_, Rest_...>
   }
   
  private:
-  using next_layer_t = LayerRec<size, L1_, Rest_...>;
   next_layer_t next_layer_;
   using base_t::bias;
   using base_t::weight;
@@ -264,12 +274,11 @@ class LayerRec<N_, L0_> : public LayerBase<LayerRec<N_, L0_>> {
     return L0_::template outputGate<BatchArray<outputs>>(xin.array()).matrix();
   }
 
-  BatchVecX activationInLayer(size_t nl,
-			      const Eigen::Ref<const ArrayX>& net,
-                              const BatchVec<inputs>& xin) const {
-    assert(
-	   nl == 0 &&
-	   "cannot compute activation requested for a non-existent layer");
+  template <size_t Nl>
+    BatchVecX activationInLayer(const Eigen::Ref<const ArrayX>& net,
+				const BatchVec<inputs>& xin) const {
+    static_assert(Nl == 0,
+		  "cannot compute activation requested for a non-existent layer");
     return (*this)(net, xin);
   }
 
