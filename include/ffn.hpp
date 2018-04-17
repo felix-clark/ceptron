@@ -36,12 +36,15 @@ class FfnStatic {
 		      const BatchVec<outputs>& yin) const;
 
   // returns the activation Nl layers deep for the given input
-  template <size_t Nl>
-  BatchVecX activationInLayer(const ArrayX& net,
+  // template <size_t Nl>
+  // we can't specialize template member functions of unspecialized
+  // template classes, so the layer parameter is run-time as of now.
+  BatchVecX activationInLayer(size_t nl, const ArrayX& net,
                               const BatchVec<inputs>& xin) const {
-    static_assert(Nl >= 0, "layer parameter must be greater than 0");
-    return first_layer_.activationInLayer<Nl>(net, xin);
+    if (nl == 0) return xin; // we will consider the 0th layer to be the input
+    else return first_layer_.activationInLayer(nl-1, net, xin);
   }
+  
   ArrayX randomWeights() const {return first_layer_.randParsRecurse();}
 };
 

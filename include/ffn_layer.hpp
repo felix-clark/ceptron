@@ -189,17 +189,19 @@ class LayerRec<N_, L0_, L1_, Rest_...>
     return L0_::template activToD<BatchArray<size>>(xin.array()).matrix();
   }
 
-  template <size_t Nl>
-  BatchVecX activationInLayer(const Eigen::Ref<const ArrayX>& net,
+  // template <size_t Nl>
+  BatchVecX activationInLayer(size_t nl,
+			      const Eigen::Ref<const ArrayX>& net,
                               const BatchVec<inputs>& xin) const {
     // we can't specialize template functions of non-templated classes.
     // this if statement may be removed at compile-time, so it should
     // be an acceptable workaround.
-    if (Nl == 0)
+    if (nl == 0)
       return (*this)(net, xin);
     else
-      return next_layer_.activationInLayer<Nl - 1>(remainingNetParRef(net),
-                                                   (*this)(net, xin));
+      return next_layer_.activationInLayer(nl-1,
+					   remainingNetParRef(net),
+					   (*this)(net, xin));
   }
 
   Array<traits_t::netSize> randParsRecurse() const {
@@ -262,12 +264,12 @@ class LayerRec<N_, L0_> : public LayerBase<LayerRec<N_, L0_>> {
     return L0_::template outputGate<BatchArray<outputs>>(xin.array()).matrix();
   }
 
-  template <size_t Nl>
-  BatchVecX activationInLayer(const Eigen::Ref<const ArrayX>& net,
+  BatchVecX activationInLayer(size_t nl,
+			      const Eigen::Ref<const ArrayX>& net,
                               const BatchVec<inputs>& xin) const {
-    static_assert(
-        Nl == 0,
-        "cannot compute activation requested for a non-existent layer");
+    assert(
+	   nl == 0 &&
+	   "cannot compute activation requested for a non-existent layer");
     return (*this)(net, xin);
   }
 

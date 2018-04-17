@@ -248,6 +248,12 @@ int main(int, char**) {
     check_gradient(net, pars, input, output);
     // scalar testCostFunc = net.costFunc(pars, input, output);
     // LOG_INFO("test cost func = " << testCostFunc);
+    LOG_INFO( "activation of layers:" );
+    LOG_INFO( net.activationInLayer(0, pars, input).transpose() );
+    LOG_INFO( net.activationInLayer(1, pars, input).transpose() );
+    LOG_INFO( net.activationInLayer(2, pars, input).transpose() );
+    // this one should fail for a single hidden layer:
+    // LOG_INFO( net.activationInLayer(3, pars, input).transpose() );
   }  // general-size static net
 
 #else
