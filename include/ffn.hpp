@@ -35,6 +35,13 @@ class FfnStatic {
   ArrayX costFuncGrad(const ArrayX& net, const BatchVec<Nin>& xin,
 		      const BatchVec<outputs>& yin) const;
 
+  // returns the activation Nl layers deep for the given input
+  template <size_t Nl>
+  BatchVecX activationInLayer(const ArrayX& net,
+                              const BatchVec<inputs>& xin) const {
+    static_assert(Nl >= 0, "layer parameter must be greater than 0");
+    return first_layer_.activationInLayer<Nl>(net, xin);
+  }
   ArrayX randomWeights() const {return first_layer_.randParsRecurse();}
 };
 

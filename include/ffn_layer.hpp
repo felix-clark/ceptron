@@ -101,6 +101,12 @@ struct LayerBase {
     a1.colwise() += bias(net);
     return activation(a1);
   }
+  // the size of the return value is determined by the size of the
+  //  nth layer ahead. this is not convenient to get at the moment
+  //  so for now it will be dynamically-sized.
+  template <size_t N>
+  BatchVecX activationInLayer(const Eigen::Ref<const ArrayX>& net,
+                              const BatchVec<inputs>& xin) const;
   // so far, these do not need to be in the base case
   // scalar costFuncRecurse(const Eigen::Ref<const ArrayX>& net,
   //                        const BatchVec<inputs>& xin,
@@ -183,6 +189,19 @@ class LayerRec<N_, L0_, L1_, Rest_...>
     return L0_::template activToD<BatchArray<size>>(xin.array()).matrix();
   }
 
+  template <size_t Nl>
+  BatchVecX activationInLayer(const Eigen::Ref<const ArrayX>& net,
+                              const BatchVec<inputs>& xin) const {
+    // we can't specialize template functions of non-templated classes.
+    // this if statement may be removed at compile-time, so it should
+    // be an acceptable workaround.
+    if (Nl == 0)
+      return (*this)(net, xin);
+    else
+      return next_layer_.activationInLayer<Nl - 1>(remainingNetParRef(net),
+                                                   (*this)(net, xin));
+  }
+
   Array<traits_t::netSize> randParsRecurse() const {
     Array<size*(inputs+1)> pars = decltype(pars)::Zero();
     pars.template segment<inputs*size>(size) =
@@ -241,6 +260,15 @@ class LayerRec<N_, L0_> : public LayerBase<LayerRec<N_, L0_>> {
   inline BatchVec<this_t::size> activation(
       const BatchVec<this_t::size>& xin) const {
     return L0_::template outputGate<BatchArray<outputs>>(xin.array()).matrix();
+  }
+
+  template <size_t Nl>
+  BatchVecX activationInLayer(const Eigen::Ref<const ArrayX>& net,
+                              const BatchVec<inputs>& xin) const {
+    static_assert(
+        Nl == 0,
+        "cannot compute activation requested for a non-existent layer");
+    return (*this)(net, xin);
   }
 
   Array<traits_t::netSize> randParsRecurse() const {
