@@ -38,24 +38,24 @@ class FfnStatic {
 private:
   // some helper template structs for function specialization of activationLayer
   template <size_t Nl, typename DUMMY=void> struct activationLayer {
-    static BatchVecX func(const first_layer_t& fl,
+    static auto func(const first_layer_t& fl,
 			  const ArrayX& net,
 			  const BatchVec<inputs>& xin) {
       return fl.template activationInLayer<Nl-1>(net, xin);
     }
   };
   template <typename DUMMY> struct activationLayer<0,DUMMY> {
-    static BatchVecX func(const first_layer_t&,
-			  const ArrayX&,
-			  const BatchVec<inputs>& xin) {
+    static BatchVec<inputs> func(const first_layer_t&,
+				 const ArrayX&,
+				 const BatchVec<inputs>& xin) {
       return xin;
     }
   };
 public:
   // returns the activation Nl layers deep for the given input
   template <size_t Nl>
-  BatchVecX activationInLayer(const ArrayX& net,
-                              const BatchVec<inputs>& xin) const {
+  auto activationInLayer(const ArrayX& net,
+			 const BatchVec<inputs>& xin) const {
     return activationLayer<Nl>::func(first_layer_, net, xin);
   }
   

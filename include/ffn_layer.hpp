@@ -195,7 +195,7 @@ class LayerRec<N_, L0_, L1_, Rest_...>
 
  private:
   template <size_t Nl, typename DUMMY=void> struct activationLayer {
-    static BatchVecX func(const this_t& t, const next_layer_t& nl,
+    static auto func(const this_t& t, const next_layer_t& nl,
 			  const Eigen::Ref<const ArrayX>& net,
 			  const BatchVec<inputs>& xin) {
       return nl.template activationInLayer<Nl-1>(t.remainingNetParRef(net),
@@ -203,14 +203,14 @@ class LayerRec<N_, L0_, L1_, Rest_...>
     }
   };
   template <typename DUMMY> struct activationLayer<0,DUMMY> {
-    static BatchVecX func(const this_t& t, const next_layer_t&,
+    static BatchVec<size> func(const this_t& t, const next_layer_t&,
 			  const Eigen::Ref<const ArrayX>& net,
 			  const BatchVec<inputs>& xin) {
       return t(net, xin);
     }
   };
  public:
-  template <size_t Nl> BatchVecX activationInLayer(const Eigen::Ref<const ArrayX>& net,
+  template <size_t Nl> auto activationInLayer(const Eigen::Ref<const ArrayX>& net,
 						   const BatchVec<inputs>& xin) const {
     return activationLayer<Nl>::func(*this, next_layer_, net, xin);
   }
@@ -275,7 +275,7 @@ class LayerRec<N_, L0_> : public LayerBase<LayerRec<N_, L0_>> {
   }
 
   template <size_t Nl>
-    BatchVecX activationInLayer(const Eigen::Ref<const ArrayX>& net,
+    BatchVec<size> activationInLayer(const Eigen::Ref<const ArrayX>& net,
 				const BatchVec<inputs>& xin) const {
     static_assert(Nl == 0,
 		  "cannot compute activation requested for a non-existent layer");
