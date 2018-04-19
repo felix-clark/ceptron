@@ -112,8 +112,7 @@ ArrT ActivFunc<InternalActivator::Tanh>::activ(const ArrT& in) {
   return tanh(in);
 #else
   // tanh did not have a special definition in versions <= 3.2.
-  ArrT expSq = exp(2 * in);
-  return (expSq - 1) / (expSq + 1);
+  return in.template unaryExpr<scalar(*)(scalar)>(std::tanh);
 #endif
 }
 
@@ -159,6 +158,8 @@ ArrT ActivFunc<InternalActivator::ReLU>::activToD(const ArrT& act) {
 template <>
 template <typename ArrT>
 ArrT ActivFunc<InternalActivator::Softplus>::activ(const ArrT& in) {
+  // we should potentially check the overflow case (exp(in) -> infinity)
+  // and use the identity function in that case
   return log(1.0 + exp(in));
 }
 
