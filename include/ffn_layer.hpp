@@ -2,6 +2,7 @@
 #include "activation.hpp"
 #include "global.hpp"
 #include "regression.hpp"
+#include "tmp_utils.hpp"
 // we don't really want these recursive layer definitions to be publicly
 // exposed, but it's too messy to try to make them private member classes of
 // FfnStatic.
@@ -43,7 +44,13 @@ struct FfnOutputLayerDef : public Regressor<reg> {
 // another type of layer could be defined which acts as a dropout mask.
 //   this could also be a property of the activation function.
 //  it would need to be instantiated to set the float dropout probability
+struct FfnDropoutLayerDef {
+private:
+  // we'll make this adjustable in the future, but 0.5 is a good default
+  // scalar dropout_prob = 0.5;
+};
 
+  
 // forward-declare recursive template so that we can specialize later
 template <size_t N_, typename L0_, typename... Rest_>
 class LayerRec;
@@ -59,7 +66,8 @@ struct LayerTraits<LayerRec<N_, L0_>> {
   static constexpr size_t inputs = N_;       // number of incoming values
   static constexpr size_t size = L0_::size;  // number of values in this layer
   static constexpr size_t outputs = size;
-  static constexpr size_t netSize = outputs*(inputs+1);
+  static constexpr size_t net_size = outputs*(inputs+1);
+  static constexpr bool have_dropout = false;
 };
 template <size_t N_, typename L0_, typename L1_, typename... Rest_>
 struct LayerTraits<LayerRec<N_, L0_, L1_, Rest_...>> {
@@ -69,14 +77,31 @@ struct LayerTraits<LayerRec<N_, L0_, L1_, Rest_...>> {
   // static constexpr size_t outputs = LayerTraits< typename
   // LayerRec<N_,L0_,L1_,Rest_...>::next_layer_t >::outputs;
   static constexpr size_t outputs = LayerTraits<next_layer_t>::outputs;
-  static constexpr size_t netSize = size*(inputs+1) + LayerTraits<next_layer_t>::netSize;
+  static constexpr size_t net_size = size*(inputs+1) + LayerTraits<next_layer_t>::net_size;
+  static constexpr bool have_dropout = LayerTraits<next_layer_t>::have_dropout;
 };
+// specialize for dropout layer, which has the same inputs as outputs
+//  and behaves like a simple (probabilistic) mask
+template <size_t N_, typename L1_, typename... Rest_>
+struct LayerTraits<LayerRec<N_, FfnDropoutLayerDef, L1_, Rest_...>> {
+  static constexpr size_t inputs = N_;
+  static constexpr size_t size = 0; // there aren't any new parameters here
+  using next_layer_t = LayerRec<N_, L1_, Rest_...>;
+  // static constexpr size_t outputs = LayerTraits< typename
+  // LayerRec<N_,L0_,L1_,Rest_...>::next_layer_t >::outputs;
+  static constexpr size_t outputs = LayerTraits<next_layer_t>::outputs;
+  static constexpr size_t net_size = LayerTraits<next_layer_t>::net_size;
+  static constexpr bool have_dropout = true;
+};
+
 
 // static interface class for Layer classes
 // it doesn't appear to be doing anything right now. so perhaps we don't even
 // need this or the traits class.
 // it might be useful if we have functions that are implemented the same for
 // both internal and output layers.
+// This should probably be renamed, since we've generalized "layer" to include
+//  dropout layers which do not use these functions.
 template <typename Derived>
 struct LayerBase {
  private:
@@ -215,16 +240,25 @@ class LayerRec<N_, L0_, L1_, Rest_...>
     return activationLayer<Nl>::func(*this, next_layer_, net, xin);
   }
 
-  Array<traits_t::netSize> randParsRecurse() const {
+  Array<traits_t::net_size> randParsRecurse() const {
     Array<size*(inputs+1)> pars = decltype(pars)::Zero();
     pars.template segment<inputs*size>(size) =
       ArrayX::Random(inputs*size) * sqrt( 6.0 / (inputs + size) );
-    // netSize is size of this and all forward layers
-    Array<traits_t::netSize> combPars;
+    // net_size is size of this and all forward layers
+    Array<traits_t::net_size> combPars;
     combPars << pars, next_layer_.randParsRecurse();
     return combPars;
   }
-  
+
+  template <typename = typename std::enable_if<
+	      std::integral_constant<bool, traits_t::have_dropout>{}
+	      >::type>
+  void setDropoutKeepP(scalar p) {
+    // static_assert( traits_t::have_dropout, "" );
+    next_layer_.setDropoutKeepP(p);
+  }
+  // void lockDropoutMask() {next_layer_.lockDropoutMask();}
+  // void unlockDropoutMask() {next_layer_.unlockDropoutMask();}
  private:
   next_layer_t next_layer_;
   using base_t::bias;
@@ -282,19 +316,117 @@ class LayerRec<N_, L0_> : public LayerBase<LayerRec<N_, L0_>> {
     return (*this)(net, xin);
   }
 
-  Array<traits_t::netSize> randParsRecurse() const {
-    Array<traits_t::netSize> pars = decltype(pars)::Zero();
+  Array<traits_t::net_size> randParsRecurse() const {
+    Array<traits_t::net_size> pars = decltype(pars)::Zero();
     pars.template segment<inputs*outputs>(outputs) =
       Array<inputs*outputs>::Random() * sqrt( 6.0 / (inputs + outputs) );
     return pars;
   }
 
+  // void setL2Lambda(scalar l) {l2_lambda_ = l;}
  private:
   using base_t::bias;
   using base_t::weight;
 
 };  // class LayerRec (output case)
 
+// dropout is a special type of layer
+// it does not need to inherit from LayerBase
+template <size_t N_, typename L1_, typename... Rest_>
+class LayerRec<N_, FfnDropoutLayerDef, L1_, Rest_...> {
+  using this_t = LayerRec<N_, FfnDropoutLayerDef, L1_, Rest_...>;
+  using traits_t = LayerTraits<this_t>;
+  
+ public:
+  constexpr static size_t outputs = traits_t::outputs;
+ private:
+  using mask_t = Eigen::Array<bool, N_, 1>;
+  using next_layer_t = LayerRec<N_, L1_, Rest_...>;
+
+  void updateMask() const {
+    if (mask_locked_) return;
+    // Random() returns values uniformly distributed between -1 and 1
+    Array<N_> rands = Array<N_>::Random().eval();
+    mask_ = rands < 2*keep_prob_-1;
+  }
+ public:
+
+  inline BatchVec<N_> operator()(const BatchVec<N_>& xin) const {
+    // we'll only update the mask once per batch.
+    updateMask();
+    auto nCols = xin.cols();
+    return mask_.replicate(1,nCols).select(xin, BatchVec<N_>::Zero(N_,nCols));    
+  }
+  // returns the cost function
+  scalar costFuncRecurse(const Eigen::Ref<const ArrayX>& net,
+                         const BatchVec<N_>& xin,
+                         const BatchVec<this_t::outputs>& yin) const {
+      return next_layer_.costFuncRecurse(net,
+					 (*this)(xin),
+					 yin);
+  }
+  // returns the matrix needed for backprop, and sets the gradient by reference
+  BatchVec<N_> costFuncGradBackprop(const Eigen::Ref<const ArrayX>& net,
+				    const BatchVec<N_>& xin,
+				    const BatchVec<this_t::outputs>& yin,
+				    Eigen::Ref<ArrayX> grad) const;
+  // function returns the prediction or a given input
+  // this and some others will be defined in the class declaration since
+  //  the function is simple and the template syntax is not clean
+  BatchVec<outputs> predictRecurse(
+      const Eigen::Ref<const ArrayX>& net,
+      const BatchVec<N_>& xin) const {
+    // for predictions we don't randomize; just scale by (1-P(drop))
+    return next_layer_.predictRecurse(net, keep_prob_*xin);  
+  }
+
+ private:
+  template <size_t Nl, typename DUMMY=void> struct activationLayer {
+    static auto func(const this_t& t, const next_layer_t& nl,
+			  const Eigen::Ref<const ArrayX>& net,
+			  const BatchVec<N_>& xin) {
+      return nl.template activationInLayer<Nl-1>(net, t(xin));
+    }
+  };
+  template <typename DUMMY> struct activationLayer<0,DUMMY> {
+    static BatchVec<N_> func(const this_t& t, const next_layer_t&,
+			     const Eigen::Ref<const ArrayX>&,
+			     const BatchVec<N_>& xin) {
+      return t(xin);
+    }
+  };
+ public:
+  template <size_t Nl> auto activationInLayer(const Eigen::Ref<const ArrayX>& net,
+					      const BatchVec<N_>& xin) const {
+    return activationLayer<Nl>::func(*this, next_layer_, net, xin);
+  }
+
+  Array<traits_t::net_size> randParsRecurse() const {
+    return next_layer_.randParsRecurse();
+  }
+  
+  void setDropoutKeepP(scalar p) {
+    keep_prob_ = p;
+    // static_assert( traits_t::have_dropout, "" );
+    // we need a static_if
+    // std::bool_constant = std::integral_constant<bool>
+    static_if< std::integral_constant<bool, LayerTraits<next_layer_t>::have_dropout >{}>
+      ([&](auto& nl)
+       {
+	 nl.setDropoutKeepP(p);
+       })(next_layer_);
+  }
+  
+ private:
+  scalar keep_prob_ = 0.5; // 1 - P(drop)
+  mutable mask_t mask_ = mask_t::Ones();
+  // some operations may require us to lock the mask between calls
+  bool mask_locked_ = false;  
+  next_layer_t next_layer_;
+
+};  // class LayerRec (internal case)
+
+  
 template <size_t N, typename L0, typename L1, typename... Rest>
 BatchVec<N> LayerRec<N, L0, L1, Rest...>::costFuncGradBackprop(const Eigen::Ref<const ArrayX>& net,
 						  const BatchVec<N>& xin,
@@ -327,5 +459,20 @@ BatchVec<N> LayerRec<N, L0>::costFuncGradBackprop(const Eigen::Ref<const ArrayX>
     Map<ArrayX>(gw.data(), inputs*outputs);
   return weight(net).transpose() * delta;
 }
+
+template <size_t N, typename L1, typename... Rest>
+BatchVec<N> LayerRec<N, FfnDropoutLayerDef, L1, Rest...>::costFuncGradBackprop(const Eigen::Ref<const ArrayX>& net,
+									       const BatchVec<N>& xin,
+									       const BatchVec<LayerRec<N, FfnDropoutLayerDef, L1, Rest...>::outputs>& yin,
+									       Eigen::Ref<ArrayX> grad) const {
+  // we need the same mask for forward and backprop, so don't call operator()
+  updateMask();
+  auto nCols = xin.cols();
+  Eigen::Array<bool,N,Eigen::Dynamic> extMask = mask_.replicate(1,nCols);
+  BatchVec<N> x1 = extMask.select(xin, BatchVec<N>::Zero(N,nCols));
+  // the derivative term (e) is component-wise multiplied by the return value of the next function call
+  return extMask.select(next_layer_.costFuncGradBackprop(net, x1, yin, grad), BatchVec<N>::Zero(N,nCols));
+}
+
 
 }  // namespace ceptron

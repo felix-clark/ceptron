@@ -60,6 +60,17 @@ public:
   }
   
   ArrayX randomWeights() const {return first_layer_.randParsRecurse();}
+  // functions to configure regularization parameters
+
+   // we could set different regularizations by layer, but we'll keep it at a single global value for now
+  // void setL2Lambda(scalar l) {first_layer_.setL2Lambda(l);}
+  void setDropoutKeepP(scalar p) {
+    static_assert( LayerTraits<first_layer_t>::have_dropout, "There are no dropout layers in this net." );
+    first_layer_.setDropoutKeepP(p);
+  }
+  // void lockDropoutMask() {first_layer_lockDropoutMask();}
+  // void unlockDropoutMask() {first_layer_.unlockDropoutMask();}
+  // do we want another function to explicitly randomize the dropout mask?
 };
 
 template <size_t Nin, typename... Ts>
@@ -76,7 +87,7 @@ ArrayX FfnStatic<Nin, Ts...>::costFuncGrad(
     const ArrayX& net, const BatchVec<Nin>& xin,
     const BatchVec<FfnStatic<Nin, Ts...>::outputs>& yin) const {
   const int batchSize = xin.cols();
-  constexpr size_t gsize = LayerTraits<first_layer_t>::netSize;
+  constexpr size_t gsize = LayerTraits<first_layer_t>::net_size;
   ArrayX grad = ArrayX(gsize);
   // the return value of this recursive function could be interesting when compared to the input data
   first_layer_.costFuncGradBackprop(net, xin, yin, grad);

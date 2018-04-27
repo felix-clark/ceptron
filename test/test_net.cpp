@@ -241,7 +241,7 @@ int main(int, char**) {
     // using Netfail = FfnStatic<Nin,HiddenLayer_t,HiddenLayer_t>;
     // this should fail: it does but the error message is not clear enough.
     // Netfail testfail;
-    using Net = FfnStatic<Nin, HiddenLayer_t, OutputLayer_t>;
+    using Net = FfnStatic<Nin, HiddenLayer_t, FfnDropoutLayerDef, OutputLayer_t>;
     Net net;
     // snag this funcionality from the single-layer case
     ArrayX pars = net.randomWeights();
