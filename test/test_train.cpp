@@ -192,12 +192,13 @@ int main(int argc, char** argv) {
   }  // static training
   
   {
-    using HiddenLayer_t = FfnLayerDef<Nh/2, Act>; // for this static one we'll use 2 hidden layers of half size each
+    using HiddenLayer_t = FfnLayerDef<Nh, Act>; // for this static one we'll use 2 hidden layers of half size each
     using OutputLayer_t = FfnOutputLayerDef<Nout, RegressionType::Categorical>;
-    FfnStatic<Nin, HiddenLayer_t, HiddenLayer_t, OutputLayer_t> net;
+    FfnStatic<Nin, HiddenLayer_t, FfnDropoutLayerDef, HiddenLayer_t, OutputLayer_t> net;
     // try setting to same initialization as runtime net:
     ArrayX pars = net.randomWeights();
     // net.setL2Reg(l2reg);// we don't have regularization implemented yet
+    net.setDropoutKeepP(0.75);
 
     LOG_INFO("");
     LOG_INFO("running test on general static version");
@@ -205,10 +206,9 @@ int main(int argc, char** argv) {
     // GradientDescent minstep(Net::size); // this could be a choice of a
     // different minimizer
     // AcceleratedGradient minstep(Net::size);
-    AdaDelta minstep(decltype(net)::size);  // this is a decent first choice since it is
-                                  // not supposed to depend strongly on
-                                  // hyperparameters
-
+    // AdaDelta is a decent first choice since it is not supposed to depend strongly on hyperparameters
+    AdaDelta minstep(decltype(net)::size);
+    
     for (int i_ep = 0; i_ep < numEpochs; ++i_ep) {
       if (i_ep % (numEpochs / 2) == 0) {
         LOG_INFO("beginning " << i_ep << "th epoch");
@@ -221,6 +221,8 @@ int main(int argc, char** argv) {
 
     LOG_INFO("post-training predictions:");
     printPredictions(net, pars);
+    // LOG_INFO("make sure the predictions are the same w/ dropout:");
+    // printPredictions(net, pars);
   }  // general static training
 
 #else
