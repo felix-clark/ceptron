@@ -192,9 +192,9 @@ int main(int argc, char** argv) {
   }  // static training
   
   {
-    using HiddenLayer_t = FfnLayerDef<Nh, Act>; // for this static one we'll use 2 hidden layers of half size each
-    using OutputLayer_t = FfnOutputLayerDef<Nout, RegressionType::Categorical>;
-    FfnStatic<Nin, HiddenLayer_t, FfnDropoutLayerDef, HiddenLayer_t, OutputLayer_t> net;
+    using HiddenLayer_t = FfnLayer<Nh, Act>; // for this static one we'll use 2 hidden layers of half size each
+    using OutputLayer_t = FfnOutputLayer<Nout, RegressionType::Categorical>;
+    FfnStatic<Nin, HiddenLayer_t, FfnDropoutLayer, HiddenLayer_t, OutputLayer_t> net;
     // try setting to same initialization as runtime net:
     ArrayX pars = net.randomWeights();
     // net.setL2Reg(l2reg);// we don't have regularization implemented yet

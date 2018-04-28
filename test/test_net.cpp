@@ -238,12 +238,12 @@ int main(int, char**) {
 
   {  // general-size static net
     LOG_INFO("Checking static FFN");
-    using HiddenLayer_t = FfnLayerDef<Nh, Act>;
-    using OutputLayer_t = FfnOutputLayerDef<Nout, Reg>;
+    using HiddenLayer_t = FfnLayer<Nh, Act>;
+    using OutputLayer_t = FfnOutputLayer<Nout, Reg>;
     // using Netfail = FfnStatic<Nin,HiddenLayer_t,HiddenLayer_t>;
     // this should fail: it does but the error message is not clear enough.
     // Netfail testfail;
-    using Net = FfnStatic<Nin, HiddenLayer_t, FfnDropoutLayerDef, OutputLayer_t>;
+    using Net = FfnStatic<Nin, HiddenLayer_t, FfnDropoutLayer, OutputLayer_t>;
     Net net;
     // snag this funcionality from the single-layer case
     ArrayX pars = net.randomWeights();
