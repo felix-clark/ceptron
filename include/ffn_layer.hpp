@@ -2,7 +2,7 @@
 #include "activation.hpp"
 #include "global.hpp"
 #include "regression.hpp"
-#include "tmp_utils.hpp"
+// #include "tmp_utils.hpp"
 // we don't really want these recursive layer definitions to be publicly
 // exposed, but it's too messy to try to make them private member classes of
 // FfnStatic.
@@ -14,9 +14,9 @@ namespace ceptron {
 //  internally it may need to know how many elements are in the layer in front
 //  or back of it, but its definition should require only these two.
 template <size_t n, InternalActivator act>
-struct FfnLayerDef : public ActivFunc<act> {
-  FfnLayerDef() = default;
-  ~FfnLayerDef() = default;
+struct FfnLayer : public ActivFunc<act> {
+  FfnLayer() = default;
+  ~FfnLayer() = default;
   static constexpr size_t size = n;
   // import activation functions and derivatives
   // we don't actually need to do this w/ inheritance, and in fact it probably
@@ -30,9 +30,9 @@ struct FfnLayerDef : public ActivFunc<act> {
 //  and is automatically an output layer when it gets a RegressionType instead
 //  InternalActivator.
 template <size_t n, RegressionType reg>
-struct FfnOutputLayerDef : public Regressor<reg> {
-  FfnOutputLayerDef() = default;
-  ~FfnOutputLayerDef() = default;
+struct FfnOutputLayer : public Regressor<reg> {
+  FfnOutputLayer() = default;
+  ~FfnOutputLayer() = default;
   static constexpr size_t size = n;
   // import activation functions and derivatives
   // pull regression functions into local class namespace
@@ -44,7 +44,7 @@ struct FfnOutputLayerDef : public Regressor<reg> {
 // another type of layer could be defined which acts as a dropout mask.
 //   this could also be a property of the activation function.
 //  it would need to be instantiated to set the float dropout probability
-struct FfnDropoutLayerDef {
+struct FfnDropoutLayer {
 private:
   // we'll make this adjustable in the future, but 0.5 is a good default
   // scalar dropout_prob = 0.5;
@@ -83,7 +83,7 @@ struct LayerTraits<LayerRec<N_, L0_, L1_, Rest_...>> {
 // specialize for dropout layer, which has the same inputs as outputs
 //  and behaves like a simple (probabilistic) mask
 template <size_t N_, typename L1_, typename... Rest_>
-struct LayerTraits<LayerRec<N_, FfnDropoutLayerDef, L1_, Rest_...>> {
+struct LayerTraits<LayerRec<N_, FfnDropoutLayer, L1_, Rest_...>> {
   static constexpr size_t inputs = N_;
   static constexpr size_t size = 0; // there aren't any new parameters here
   using next_layer_t = LayerRec<N_, L1_, Rest_...>;
@@ -251,26 +251,19 @@ class LayerRec<N_, L0_, L1_, Rest_...>
     return combPars;
   }
 
-  void setL2Lambda(scalar l) {
+  inline void setL2Lambda(scalar l) {
     l2_lambda_ = l;
     next_layer_.setL2Lambda(l);
   }
-  template <typename = typename std::enable_if<
-	      bool_constant< traits_t::have_dropout>{}
-	      >
-	    >
-  void setDropoutKeepP(scalar p) {
-    static_assert( traits_t::have_dropout, "" );
-    next_layer_.setDropoutKeepP(p);
-  }
-  template <typename = typename std::enable_if<
-	      bool_constant< traits_t::have_dropout>{}>
-	    >
-  void lockDropoutMask() {next_layer_.lockDropoutMask();}
-  template <typename = typename std::enable_if<
-	      bool_constant< traits_t::have_dropout>{}>
-	    >
-  void unlockDropoutMask() {next_layer_.unlockDropoutMask();}
+  // while possible to prevent unnecessary functions from being compiled at all,
+  // it's a bit verbose and not compatible w/ old compilers.
+  // template <typename = typename std::enable_if<
+  // 	      bool_constant< traits_t::have_dropout>{}
+  // 	      >
+  // 	    >
+  inline void setDropoutKeepP(scalar p) {next_layer_.setDropoutKeepP(p);}
+  inline void lockDropoutMask() {next_layer_.lockDropoutMask();}
+  inline void unlockDropoutMask() {next_layer_.unlockDropoutMask();}
  private:
   scalar l2_lambda_ = 0.;
   next_layer_t next_layer_;
@@ -337,7 +330,11 @@ class LayerRec<N_, L0_> : public LayerBase<LayerRec<N_, L0_>> {
     return pars;
   }
 
-  void setL2Lambda(scalar l) {l2_lambda_ = l;}
+  inline void setL2Lambda(scalar l) {l2_lambda_ = l;}
+  // no-op in output layer
+  inline void setDropoutKeepP(scalar) {}
+  inline void lockDropoutMask() {}
+  inline void unlockDropoutMask() {}
  private:
   scalar l2_lambda_ = 0.;
   using base_t::bias;
@@ -349,8 +346,8 @@ class LayerRec<N_, L0_> : public LayerBase<LayerRec<N_, L0_>> {
 // dropout is a special type of layer
 // it does not need to inherit from LayerBase
 template <size_t N_, typename L1_, typename... Rest_>
-class LayerRec<N_, FfnDropoutLayerDef, L1_, Rest_...> {
-  using this_t = LayerRec<N_, FfnDropoutLayerDef, L1_, Rest_...>;
+class LayerRec<N_, FfnDropoutLayer, L1_, Rest_...> {
+  using this_t = LayerRec<N_, FfnDropoutLayer, L1_, Rest_...>;
   using traits_t = LayerTraits<this_t>;
   
  public:
@@ -421,30 +418,23 @@ class LayerRec<N_, FfnDropoutLayerDef, L1_, Rest_...> {
     return next_layer_.randParsRecurse();
   }
 
-  void setL2Lambda(scalar l) {next_layer_.setL2Lambda(l);}
-  void setDropoutKeepP(scalar p) {
+  inline void setL2Lambda(scalar l) {next_layer_.setL2Lambda(l);}
+  inline void setDropoutKeepP(scalar p) {
     keep_prob_ = p;
-    static_if< bool_constant< LayerTraits<next_layer_t>::have_dropout >{}>
-      ([&](auto& nl)
-       {
-	 nl.setDropoutKeepP(p);
-       })(next_layer_);
+    next_layer_.setDropoutKeepP(p);
+    // static_if< bool_constant< LayerTraits<next_layer_t>::have_dropout >{}>
+    //   ([&](auto& nl)
+    //    {
+    // 	 nl.setDropoutKeepP(p);
+    //    })(next_layer_);
   }
-  void lockDropoutMask() {
+  inline void lockDropoutMask() {
     mask_locked_ = true;
-    static_if< bool_constant< LayerTraits<next_layer_t>::have_dropout >{}>
-      ([&](auto& nl)
-       {
-	 nl.lockDropoutMask();
-       })(next_layer_);
+    next_layer_.lockDropoutMask();
   }
-  void unlockDropoutMask() {
+  inline void unlockDropoutMask() {
     mask_locked_ = false;
-    static_if< bool_constant< LayerTraits<next_layer_t>::have_dropout >{}>
-      ([&](auto& nl)
-       {
-	 nl.unlockDropoutMask();
-       })(next_layer_);
+    next_layer_.unlockDropoutMask();
   }
   
   
@@ -494,9 +484,9 @@ BatchVec<N> LayerRec<N, L0>::costFuncGradBackprop(const Eigen::Ref<const ArrayX>
 }
 
 template <size_t N, typename L1, typename... Rest>
-BatchVec<N> LayerRec<N, FfnDropoutLayerDef, L1, Rest...>::costFuncGradBackprop(const Eigen::Ref<const ArrayX>& net,
+BatchVec<N> LayerRec<N, FfnDropoutLayer, L1, Rest...>::costFuncGradBackprop(const Eigen::Ref<const ArrayX>& net,
 									       const BatchVec<N>& xin,
-									       const BatchVec<LayerRec<N, FfnDropoutLayerDef, L1, Rest...>::outputs>& yin,
+									       const BatchVec<LayerRec<N, FfnDropoutLayer, L1, Rest...>::outputs>& yin,
 									       Eigen::Ref<ArrayX> grad) const {
   // we need the same mask for forward and backprop, so don't call operator()
   updateMask();

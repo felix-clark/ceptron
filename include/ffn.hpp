@@ -62,7 +62,8 @@ public:
   ArrayX randomWeights() const {return first_layer_.randParsRecurse();}
   // functions to configure regularization parameters
 
-   // we could set different regularizations by layer, but we'll keep it at a single global value for now
+  // we could set different regularizations by layer, but we'll keep it at a single global value for now
+  // weight decay actually tends to work better w/ smart gradient descent algorithms like Adam
   void setL2Lambda(scalar l) {first_layer_.setL2Lambda(l);}
   void setDropoutKeepP(scalar p) {
     static_assert( LayerTraits<first_layer_t>::have_dropout, "There are no dropout layers in this net." );
