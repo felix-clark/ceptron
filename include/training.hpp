@@ -5,14 +5,12 @@
 #include "slfn.hpp"
 
 // long term it's probably not best organization to include all the training
-// functions in here,
-//  because then to use a trainer we have to indirectly include the whole
-//  library.
+// functions in here, because then to use a trainer we have to indirectly
+// include the whole library.
 
 namespace ceptron {
 // we may want to return the entire net value so that the input can be declared
-// const,
-//  but it's possible this would result in extra copies
+// const, but it's possible this would result in extra copies
 template <typename Net>
 void trainSlfnStatic(Net& net, ArrayX& par, IMinStep& ms,
                      const BatchVec<Net::inputs>& x,
@@ -25,14 +23,15 @@ void trainSlfnStatic(Net& net, ArrayX& par, IMinStep& ms,
   par += dp;  // increment net
 }
 
-//  TODO: implement a regularization inside this function
+// weight decay is similar to L2 reg, but it ends up working better when decoupled from the caches in AdaDelta/Adam
 template <typename Net>
 void trainFfn(Net& net, ArrayX& par, IMinStep& ms,
 	      const BatchVec<Net::inputs>& x,
-	      const BatchVec<Net::outputs>& y) {
+	      const BatchVec<Net::outputs>& y,
+	      scalar weight_decay=0.) {
   func_t f = std::bind(&Net::costFunc, &net, std::placeholders::_1, x, y);
   grad_t g = std::bind(&Net::costFuncGrad, &net, std::placeholders::_1, x, y);
-  ArrayX dp = ms.getDeltaPar(f, g, par);
+  ArrayX dp = ms.getDeltaPar(f, g, par) - weight_decay*par;
   par += dp;  // increment net
 }
 
