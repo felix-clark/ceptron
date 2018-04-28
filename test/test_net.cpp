@@ -247,15 +247,16 @@ int main(int, char**) {
     Net net;
     // snag this funcionality from the single-layer case
     ArrayX pars = net.randomWeights();
+    net.setL2Lambda(0.001);
     net.setDropoutKeepP(0.5);
     check_gradient(net, pars, input, output);
     // scalar testCostFunc = net.costFunc(pars, input, output);
     // LOG_INFO("test cost func = " << testCostFunc);
-    LOG_DEBUG( "activation of layers:" );
-    LOG_DEBUG( "\n" << net.activationInLayer<0>(pars, input).transpose() );
-    LOG_DEBUG( "\n" << net.activationInLayer<1>(pars, input).transpose() );
-    LOG_DEBUG( "\n" << net.activationInLayer<2>(pars, input).transpose() );
-    LOG_DEBUG( "\n" << net.activationInLayer<3>(pars, input).transpose() );
+    // LOG_DEBUG( "activation of layers:" );
+    // LOG_DEBUG( "\n" << net.activationInLayer<0>(pars, input).transpose() );
+    // LOG_DEBUG( "\n" << net.activationInLayer<1>(pars, input).transpose() );
+    // LOG_DEBUG( "\n" << net.activationInLayer<2>(pars, input).transpose() );
+    // LOG_DEBUG( "\n" << net.activationInLayer<3>(pars, input).transpose() );
     // this one should fail for a single hidden layer:
     // LOG_INFO( net.activationInLayer<3>(pars, input).transpose() );
   }  // general-size static net

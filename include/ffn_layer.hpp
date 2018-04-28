@@ -193,7 +193,8 @@ class LayerRec<N_, L0_, L1_, Rest_...>
                          const BatchVec<this_t::outputs>& yin) const {
       return next_layer_.costFuncRecurse(remainingNetParRef(net),
 					 (*this)(net, xin),
-					 yin);
+					 yin)
+	+ l2_lambda_ * weight(net).array().square().sum();
   }
   // returns the matrix needed for backprop, and sets the gradient by reference
   BatchVec<N_> costFuncGradBackprop(const Eigen::Ref<const ArrayX>& net,
@@ -250,8 +251,12 @@ class LayerRec<N_, L0_, L1_, Rest_...>
     return combPars;
   }
 
+  void setL2Lambda(scalar l) {
+    l2_lambda_ = l;
+    next_layer_.setL2Lambda(l);
+  }
   template <typename = typename std::enable_if<
-	      std::integral_constant<bool, traits_t::have_dropout>{}
+	      bool_constant< traits_t::have_dropout>{}
 	      >
 	    >
   void setDropoutKeepP(scalar p) {
@@ -259,14 +264,15 @@ class LayerRec<N_, L0_, L1_, Rest_...>
     next_layer_.setDropoutKeepP(p);
   }
   template <typename = typename std::enable_if<
-	      std::integral_constant<bool, traits_t::have_dropout>{}>
+	      bool_constant< traits_t::have_dropout>{}>
 	    >
   void lockDropoutMask() {next_layer_.lockDropoutMask();}
   template <typename = typename std::enable_if<
-	      std::integral_constant<bool, traits_t::have_dropout>{}>
+	      bool_constant< traits_t::have_dropout>{}>
 	    >
   void unlockDropoutMask() {next_layer_.unlockDropoutMask();}
  private:
+  scalar l2_lambda_ = 0.;
   next_layer_t next_layer_;
   using base_t::bias;
   using base_t::weight;
@@ -296,7 +302,8 @@ class LayerRec<N_, L0_> : public LayerBase<LayerRec<N_, L0_>> {
                          const BatchVec<N_>& xin,
                          const BatchVec<outputs>& yin) const {
     return L0_::template costFuncVal<BatchArray<size>>((*this)(net, xin).array(),
-						      yin.array());
+						      yin.array())
+      + l2_lambda_ * weight(net).array().square().sum();
   }
   // returns the matrix needed for backprop, and sets the gradient by reference
   BatchVec<N_> costFuncGradBackprop(const Eigen::Ref<const ArrayX>& net,
@@ -330,13 +337,15 @@ class LayerRec<N_, L0_> : public LayerBase<LayerRec<N_, L0_>> {
     return pars;
   }
 
-  // void setL2Lambda(scalar l) {l2_lambda_ = l;}
+  void setL2Lambda(scalar l) {l2_lambda_ = l;}
  private:
+  scalar l2_lambda_ = 0.;
   using base_t::bias;
   using base_t::weight;
 
 };  // class LayerRec (output case)
 
+  
 // dropout is a special type of layer
 // it does not need to inherit from LayerBase
 template <size_t N_, typename L1_, typename... Rest_>
@@ -411,10 +420,11 @@ class LayerRec<N_, FfnDropoutLayerDef, L1_, Rest_...> {
   Array<traits_t::net_size> randParsRecurse() const {
     return next_layer_.randParsRecurse();
   }
-  
+
+  void setL2Lambda(scalar l) {next_layer_.setL2Lambda(l);}
   void setDropoutKeepP(scalar p) {
     keep_prob_ = p;
-    static_if< std::integral_constant<bool, LayerTraits<next_layer_t>::have_dropout >{}>
+    static_if< bool_constant< LayerTraits<next_layer_t>::have_dropout >{}>
       ([&](auto& nl)
        {
 	 nl.setDropoutKeepP(p);
@@ -422,7 +432,7 @@ class LayerRec<N_, FfnDropoutLayerDef, L1_, Rest_...> {
   }
   void lockDropoutMask() {
     mask_locked_ = true;
-    static_if< std::integral_constant<bool, LayerTraits<next_layer_t>::have_dropout >{}>
+    static_if< bool_constant< LayerTraits<next_layer_t>::have_dropout >{}>
       ([&](auto& nl)
        {
 	 nl.lockDropoutMask();
@@ -430,7 +440,7 @@ class LayerRec<N_, FfnDropoutLayerDef, L1_, Rest_...> {
   }
   void unlockDropoutMask() {
     mask_locked_ = false;
-    static_if< std::integral_constant<bool, LayerTraits<next_layer_t>::have_dropout >{}>
+    static_if< bool_constant< LayerTraits<next_layer_t>::have_dropout >{}>
       ([&](auto& nl)
        {
 	 nl.unlockDropoutMask();
@@ -460,7 +470,8 @@ BatchVec<N> LayerRec<N, L0, L1, Rest...>::costFuncGradBackprop(const Eigen::Ref<
   BatchVec<size> delta =
     e.cwiseProduct(next_layer_.costFuncGradBackprop(remainingNetParRef(net), x1, yin, remainingGrad));
   grad.segment<size>(0) = delta.rowwise().sum().array(); // bias terms for gradient
-  Mat<size,inputs> gw = delta * xin.transpose(); // + 2 * l2_lambda * weights; , if we had regularization internal
+  Mat<size,inputs> gw = delta * xin.transpose()
+    + 2 * l2_lambda_ * weight(net);
   grad.segment<inputs*size>(size) =
     Map<ArrayX>(gw.data(), inputs*size);
   return weight(net).transpose() * delta;
@@ -475,7 +486,8 @@ BatchVec<N> LayerRec<N, L0>::costFuncGradBackprop(const Eigen::Ref<const ArrayX>
   BatchVec<size> delta = x1 - yin;
   static_assert( outputs == size, "in output layer, outputs should be same as size" );
   grad.segment<outputs>(0) = delta.rowwise().sum().array(); // bias terms for gradient
-  Mat<size,inputs> gw = delta * xin.transpose(); // + 2 * l2_lambda * weights; , if we had regularization internal
+  Mat<size,inputs> gw = delta * xin.transpose()
+    + 2 * l2_lambda_ * weight(net);
   grad.segment<inputs*outputs>(outputs) =
     Map<ArrayX>(gw.data(), inputs*outputs);
   return weight(net).transpose() * delta;
