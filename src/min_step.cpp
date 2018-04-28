@@ -151,6 +151,31 @@ ArrayX AdaDelta::getDeltaPar(func_t /*f*/, grad_t g, ArrayX pars) {
   return dp;
 }
 
+void Adam::resetCache() {
+  accum_m_.setZero();
+  accum_v_.setZero();
+  beta1t_ = 1;
+  beta2t_ = 1;
+}
+
+ArrayX Adam::getDeltaPar(func_t /*f*/, grad_t g, ArrayX pars) {
+  // an accelerated version might improve performance
+  ArrayX grad = g(pars);
+  accum_m_ *= beta1_;
+  accum_m_ += (1-beta1_)*grad;
+  accum_v_ *= beta2_;
+  accum_v_ += (1-beta2_)*grad.square();
+
+  beta1t_ *= beta1_;
+  beta2t_ *= beta2_;
+
+  // bias-corrected moments
+  ArrayX mhat = accum_m_/(1-beta1t_);
+  ArrayX vhat = accum_v_/(1-beta2t_);
+  
+  return -learn_rate_ * mhat / (vhat.sqrt() + ep_);
+}
+  
 void Bfgs::resetCache() { hessian_approx_.setIdentity(); }
 
 ArrayX Bfgs::getDeltaPar(func_t f, grad_t g, ArrayX par) {

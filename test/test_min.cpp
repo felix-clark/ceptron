@@ -189,6 +189,13 @@ int main(int, char**) {
   // ad.setDecayScale(0.5);
   run_test_functions<ndim>(ad, initpars);
 
+  LOG_INFO("  ... ADAM ...");
+  Adam am(ndim);
+  // am.setLearnRate(1.0/(1<<9));
+  // am.setBeta1(0.875);
+  // am.setBeta2(1 - 1.0/(1<<9));
+  run_test_functions<ndim>(am, initpars);
+
   // BFGS isn't going to be useful for machine learning but let's compare it to
   // other minimizers
   // it's possible that LBFGS can be used, but may need some adaptation for

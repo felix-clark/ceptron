@@ -61,9 +61,9 @@ class GradientDescentWithMomentum : public IMinStep {
   void setMomentumScale(scalar ms) { momentum_scale_ = ms; }
 
  private:
-  ArrayX momentum_term_;  // = ArrayX::Zero();
   scalar learn_rate_ = 0.005;
   scalar momentum_scale_ = 0.875;
+  ArrayX momentum_term_;  // = ArrayX::Zero();
 };
 
 // // ---- Nesterov's accelerated gradient ----
@@ -81,9 +81,9 @@ class AcceleratedGradient : public IMinStep {
   void setMomentumScale(scalar ms) { momentum_scale_ = ms; }
 
  private:
-  ArrayX momentum_term_;
   scalar learn_rate_ = 0.005;
   scalar momentum_scale_ = 0.875;
+  ArrayX momentum_term_;
 };
 
 // ---- ADADELTA has an adaptive, unitless learning rate ----
@@ -104,14 +104,46 @@ class AdaDelta : public IMinStep {
   void setEpsilon(scalar ep) { ep_ = ep; }
 
  private:
+  scalar decay_scale_ = 0.9375;  // similar to window average of last 16 values.
+                                 // 0.875 for scale of 8 previous values
+  // the learn rate can be adjusted down if necessary
+  scalar learn_rate_ = 1.0;
+  scalar ep_ = 1e-6;
   ArrayX accum_grad_sq_;
   ArrayX accum_dpar_sq_;
   ArrayX last_delta_par_;
-  scalar decay_scale_ = 0.9375;  // similar to window average of last 16 values.
-                                 // 0.875 for scale of 8 previous values
-  scalar learn_rate_ =
-      1.0;  // a default value that can be adjusted down if necessary
-  scalar ep_ = 1e-6;
+};
+
+// ---- Adam uses adaptive 1st and 2nd gradient moments ----
+// it 
+
+class Adam : public IMinStep {
+ public:
+  explicit Adam(int npar)
+      : accum_m_(ArrayX::Zero(npar)),
+        accum_v_(ArrayX::Zero(npar)) {};
+  ~Adam() = default;
+  virtual ArrayX getDeltaPar(func_t, grad_t, ArrayX) override;
+  virtual void resetCache() override;
+  void setLearnRate(scalar lr) { learn_rate_ = lr; }
+  void setBeta1(scalar b) { beta1_ = b; }
+  void setBeta2(scalar b) { beta2_ = b; }
+  void setEpsilon(scalar ep) { ep_ = ep; }
+
+ private:
+  // hyperparameters
+  scalar learn_rate_ = 1.0/(1 << 10); // ~ 0.000977
+  scalar beta1_ = 0.9375;
+  scalar beta2_ = 1.0 - 1.0/(1 << 10);
+  scalar ep_ = 1e-8;
+  // saved quantities
+  // exponential average of gradient mean moment
+  ArrayX accum_m_;
+  // exponential average of gradient variance moment
+  ArrayX accum_v_;
+  // beta parameters to the (time) power, used for bias-correction
+  scalar beta1t_ = 1;
+  scalar beta2t_ = 1;
 };
 
 // ---- BFGS ----
