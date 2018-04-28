@@ -31,6 +31,7 @@ void check_gradient(Net& net, const ArrayX& p, const BatchVec<Net::inputs>& xin,
                     scalar ep = local_epsilon, scalar tol = default_tol) {
   constexpr size_t Npar = Net::size;
   scalar fval = net.costFunc(p, xin, yin);
+  net.lockDropoutMask();
   ArrayX evalgrad = net.costFuncGrad(p, xin, yin);
 
   LOG_TRACE("about to try to compute numerical derivative");
@@ -58,6 +59,7 @@ void check_gradient(Net& net, const ArrayX& p, const BatchVec<Net::inputs>& xin,
     LOG_WARNING("analytic gradient = " << evalgrad.transpose().format(my_fmt));
     LOG_WARNING("difference = " << (df - evalgrad).transpose().format(my_fmt));
   }
+  net.unlockDropoutMask();
 }
 
 template <typename Net>
@@ -245,13 +247,15 @@ int main(int, char**) {
     Net net;
     // snag this funcionality from the single-layer case
     ArrayX pars = net.randomWeights();
+    net.setDropoutKeepP(0.5);
     check_gradient(net, pars, input, output);
     // scalar testCostFunc = net.costFunc(pars, input, output);
     // LOG_INFO("test cost func = " << testCostFunc);
-    LOG_INFO( "activation of layers:" );
-    LOG_INFO( net.activationInLayer<0>(pars, input).transpose() );
-    LOG_INFO( net.activationInLayer<1>(pars, input).transpose() );
-    LOG_INFO( net.activationInLayer<2>(pars, input).transpose() );
+    LOG_DEBUG( "activation of layers:" );
+    LOG_DEBUG( "\n" << net.activationInLayer<0>(pars, input).transpose() );
+    LOG_DEBUG( "\n" << net.activationInLayer<1>(pars, input).transpose() );
+    LOG_DEBUG( "\n" << net.activationInLayer<2>(pars, input).transpose() );
+    LOG_DEBUG( "\n" << net.activationInLayer<3>(pars, input).transpose() );
     // this one should fail for a single hidden layer:
     // LOG_INFO( net.activationInLayer<3>(pars, input).transpose() );
   }  // general-size static net

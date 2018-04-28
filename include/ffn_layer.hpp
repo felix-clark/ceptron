@@ -252,13 +252,20 @@ class LayerRec<N_, L0_, L1_, Rest_...>
 
   template <typename = typename std::enable_if<
 	      std::integral_constant<bool, traits_t::have_dropout>{}
-	      >::type>
+	      >
+	    >
   void setDropoutKeepP(scalar p) {
-    // static_assert( traits_t::have_dropout, "" );
+    static_assert( traits_t::have_dropout, "" );
     next_layer_.setDropoutKeepP(p);
   }
-  // void lockDropoutMask() {next_layer_.lockDropoutMask();}
-  // void unlockDropoutMask() {next_layer_.unlockDropoutMask();}
+  template <typename = typename std::enable_if<
+	      std::integral_constant<bool, traits_t::have_dropout>{}>
+	    >
+  void lockDropoutMask() {next_layer_.lockDropoutMask();}
+  template <typename = typename std::enable_if<
+	      std::integral_constant<bool, traits_t::have_dropout>{}>
+	    >
+  void unlockDropoutMask() {next_layer_.unlockDropoutMask();}
  private:
   next_layer_t next_layer_;
   using base_t::bias;
@@ -407,15 +414,29 @@ class LayerRec<N_, FfnDropoutLayerDef, L1_, Rest_...> {
   
   void setDropoutKeepP(scalar p) {
     keep_prob_ = p;
-    // static_assert( traits_t::have_dropout, "" );
-    // we need a static_if
-    // std::bool_constant = std::integral_constant<bool>
     static_if< std::integral_constant<bool, LayerTraits<next_layer_t>::have_dropout >{}>
       ([&](auto& nl)
        {
 	 nl.setDropoutKeepP(p);
        })(next_layer_);
   }
+  void lockDropoutMask() {
+    mask_locked_ = true;
+    static_if< std::integral_constant<bool, LayerTraits<next_layer_t>::have_dropout >{}>
+      ([&](auto& nl)
+       {
+	 nl.lockDropoutMask();
+       })(next_layer_);
+  }
+  void unlockDropoutMask() {
+    mask_locked_ = false;
+    static_if< std::integral_constant<bool, LayerTraits<next_layer_t>::have_dropout >{}>
+      ([&](auto& nl)
+       {
+	 nl.unlockDropoutMask();
+       })(next_layer_);
+  }
+  
   
  private:
   scalar keep_prob_ = 0.5; // 1 - P(drop)

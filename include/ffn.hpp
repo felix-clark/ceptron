@@ -22,7 +22,7 @@ class FfnStatic {
  public:
   static constexpr size_t inputs = Nin;
   static constexpr size_t outputs = decltype(first_layer_)::outputs;
-  static constexpr size_t size = LayerTraits<first_layer_t>::netSize;
+  static constexpr size_t size = LayerTraits<first_layer_t>::net_size;
   // get output for an input, in other words, the net's prediction
   BatchVec<outputs> operator()(const ArrayX& net,
                                const BatchVec<Nin>& xin) const {
@@ -68,8 +68,8 @@ public:
     static_assert( LayerTraits<first_layer_t>::have_dropout, "There are no dropout layers in this net." );
     first_layer_.setDropoutKeepP(p);
   }
-  // void lockDropoutMask() {first_layer_lockDropoutMask();}
-  // void unlockDropoutMask() {first_layer_.unlockDropoutMask();}
+  void lockDropoutMask() {first_layer_.lockDropoutMask();}
+  void unlockDropoutMask() {first_layer_.unlockDropoutMask();}
   // do we want another function to explicitly randomize the dropout mask?
 };
 
